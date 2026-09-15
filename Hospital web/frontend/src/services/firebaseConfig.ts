@@ -37,8 +37,9 @@ try {
   db = {} as Firestore;
 }
 
-// Export instances
+// Export instances and functions
 export { app, auth, db };
+export { getFirestore } from 'firebase/firestore';
 
 // Export providers
 export const googleProvider = new GoogleAuthProvider();

@@ -55,9 +55,9 @@ export async function savePredictionToFirebase(prediction: FlowisePrediction): P
 }
 
 /**
- * Get Flowise AI prediction and automatically sync to Firebase
+ * Get prediction from Flowise AI and save to Firebase
  */
-export async function getPredictionWithSync(input: {
+export async function getAndSyncPrediction(input: {
   city: string;
   aqi: number;
   weather: any;
@@ -67,7 +67,10 @@ export async function getPredictionWithSync(input: {
   try {
     // Call Flowise AI
     console.log('🤖 Calling Flowise AI for prediction...');
-    const flowiseResult = await callFlowiseAI(input);
+    const flowiseResult = await callFlowiseAI({
+      ...input,
+      epidemicActive: input.epidemics && input.epidemics.length > 0,
+    } as any);
 
     // Create prediction object
     const prediction: FlowisePrediction = {
@@ -80,9 +83,9 @@ export async function getPredictionWithSync(input: {
         festivals: input.festivals,
       },
       prediction: {
-        patientLoad: flowiseResult.predictedPatientLoad,
+        patientLoad: flowiseResult.predictedPatients ?? (flowiseResult as any).predictedPatientLoad ?? 0,
         surge: flowiseResult.surgePrediction,
-        confidence: flowiseResult.confidence || 0.85,
+        confidence: (flowiseResult as any).confidence || 0.85,
         recommendations: flowiseResult.recommendations,
       },
       status: 'completed',
@@ -377,6 +380,9 @@ export function enableRealtimeSync(
     });
   });
 }
+
+// Alias for backward compatibility
+export const getPredictionWithSync = getAndSyncPrediction;
 
 // Export all functions
 export default {

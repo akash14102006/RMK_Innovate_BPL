@@ -92,12 +92,12 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
 
   // Hospital Information
   doc.setFontSize(14);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.text('Hospital Information', leftMargin, yPosition);
   yPosition += 10;
   
   doc.setFontSize(11);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
   doc.text(`Hospital: ${data.hospitalName}`, leftMargin, yPosition);
   yPosition += 7;
   doc.text(`Location: ${data.city}, ${data.region}`, leftMargin, yPosition);
@@ -117,26 +117,26 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   // ============================================
   checkNewPage();
   doc.setFontSize(14);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 150, 136);
   doc.text('Pollution Monitoring', leftMargin, yPosition);
   doc.setTextColor(0, 0, 0);
   yPosition += 10;
 
   doc.setFontSize(11);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
   
   // AQI Box
   doc.setFillColor(245, 245, 245);
   doc.roundedRect(leftMargin, yPosition, contentWidth / 2 - 5, 30, 3, 3, 'F');
   doc.text('Air Quality Index (AQI)', leftMargin + 5, yPosition + 7);
   doc.setFontSize(24);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   const aqiColor = getAQIColor(data.aqi);
   doc.setTextColor(aqiColor.r, aqiColor.g, aqiColor.b);
   doc.text(`${data.aqi}`, leftMargin + 5, yPosition + 20);
   doc.setFontSize(11);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
   doc.text(data.aqiLevel, leftMargin + 40, yPosition + 20);
   doc.setTextColor(0, 0, 0);
@@ -147,11 +147,11 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
     doc.roundedRect(leftMargin + contentWidth / 2 + 5, yPosition, contentWidth / 2 - 5, 30, 3, 3, 'F');
     doc.text('Weather Conditions', leftMargin + contentWidth / 2 + 10, yPosition + 7);
     doc.setFontSize(20);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.setTextColor(58, 134, 255);
     doc.text(`${data.temperature}°C`, leftMargin + contentWidth / 2 + 10, yPosition + 20);
     doc.setFontSize(11);
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
     doc.text(`${data.humidity}% humidity`, leftMargin + contentWidth / 2 + 45, yPosition + 20);
     doc.setTextColor(0, 0, 0);
@@ -176,7 +176,7 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   // ============================================
   checkNewPage(50);
   doc.setFontSize(14);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 150, 136);
   doc.text('Festival Calendar & Impact', leftMargin, yPosition);
   doc.setTextColor(0, 0, 0);
@@ -188,9 +188,9 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
     doc.roundedRect(leftMargin, yPosition, contentWidth, 20, 3, 3, 'F');
     doc.setFontSize(11);
     doc.text('Current Festival:', leftMargin + 5, yPosition + 8);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text(`${data.currentFestival.name}`, leftMargin + 5, yPosition + 15);
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.text(`Surge: ${data.currentFestival.surge}`, leftMargin + 80, yPosition + 15);
     yPosition += 28;
   }
@@ -198,10 +198,10 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   // Upcoming Festivals
   if (data.upcomingFestivals && data.upcomingFestivals.length > 0) {
     doc.setFontSize(11);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('Upcoming Festivals (Next 30 Days):', leftMargin, yPosition);
     yPosition += 8;
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
 
     data.upcomingFestivals.slice(0, 5).forEach((festival, idx) => {
@@ -230,7 +230,7 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   // ============================================
   checkNewPage(60);
   doc.setFontSize(14);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 150, 136);
   doc.text('Epidemic Surveillance', leftMargin, yPosition);
   doc.setTextColor(0, 0, 0);
@@ -240,10 +240,10 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   if (data.epidemicActive && data.epidemicData && data.epidemicData.length > 0) {
     // Top Active Diseases
     doc.setFontSize(11);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('Active Disease Surveillance:', leftMargin, yPosition);
     yPosition += 8;
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
 
     data.epidemicData.slice(0, 6).forEach((disease, idx) => {
@@ -257,9 +257,9 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
       doc.roundedRect(leftMargin, yPosition, contentWidth, 18, 2, 2, 'F');
       
       doc.setTextColor(0, 0, 0);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text(disease.disease, leftMargin + 5, yPosition + 6);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.text(`${disease.cases.toLocaleString()} cases`, leftMargin + 5, yPosition + 12);
       doc.text(`${disease.region}`, leftMargin + 80, yPosition + 6);
       doc.text(`Trend: ${disease.trend} (${disease.weeklyChange})`, leftMargin + 80, yPosition + 12);
@@ -280,10 +280,10 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   if (data.stateWiseData && data.stateWiseData.length > 0) {
     checkNewPage(50);
     doc.setFontSize(11);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('State-Wise Disease Distribution (Top 5):', leftMargin, yPosition);
     yPosition += 8;
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
 
     data.stateWiseData.slice(0, 5).forEach((state, idx) => {
@@ -306,18 +306,18 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   if (data.healthAlerts && data.healthAlerts.length > 0) {
     checkNewPage(40);
     doc.setFontSize(11);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('Latest Health Alerts (News API & WHO):', leftMargin, yPosition);
     yPosition += 8;
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
 
     data.healthAlerts.slice(0, 3).forEach((alert, idx) => {
       checkNewPage(20);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text(alert.title.substring(0, 80), leftMargin + 5, yPosition);
       yPosition += 5;
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
       doc.text(alert.description.substring(0, 120), leftMargin + 5, yPosition, contentWidth - 10);
       yPosition += 5;
       doc.setTextColor(100, 100, 100);
@@ -337,7 +337,7 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   // ============================================
   checkNewPage(50);
   doc.setFontSize(14);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 150, 136);
   doc.text('AI-Powered Predictions', leftMargin, yPosition);
   doc.setTextColor(0, 0, 0);
@@ -354,11 +354,11 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   doc.setTextColor(100, 100, 100);
   doc.text('Predicted Patient Load', leftMargin + 5, yPosition + 8);
   doc.setFontSize(24);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(58, 134, 255);
   doc.text(`${data.prediction.predictedPatients}`, leftMargin + 5, yPosition + 23);
   doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
   doc.text(`+${data.prediction.surgePrediction}% surge`, leftMargin + 5, yPosition + 31);
   doc.setTextColor(0, 0, 0);
@@ -370,11 +370,11 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   doc.setTextColor(100, 100, 100);
   doc.text('Additional Staff', leftMargin + cardWidth + 8, yPosition + 8);
   doc.setFontSize(24);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(139, 92, 246);
   doc.text(`${data.prediction.staffNeeded}`, leftMargin + cardWidth + 8, yPosition + 23);
   doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
   doc.text('staff members', leftMargin + cardWidth + 8, yPosition + 31);
   doc.setTextColor(0, 0, 0);
@@ -387,23 +387,23 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   doc.setTextColor(100, 100, 100);
   doc.text('Alert Level', leftMargin + 2 * (cardWidth + 3) + 5, yPosition + 8);
   doc.setFontSize(18);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(alertColor.text.r, alertColor.text.g, alertColor.text.b);
   doc.text(data.prediction.alertLevel.toUpperCase(), leftMargin + 2 * (cardWidth + 3) + 5, yPosition + 25);
   doc.setTextColor(0, 0, 0);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
 
   yPosition += cardHeight + 12;
 
   // Surge Breakdown
   checkNewPage();
   doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.text('Surge Breakdown', leftMargin, yPosition);
   yPosition += 8;
 
   doc.setFontSize(10);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
   
   const breakdown = [
     { label: 'Baseline Patients:', value: data.prediction.breakdown.baselinePatients },
@@ -414,9 +414,9 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
 
   breakdown.forEach((item) => {
     doc.text(item.label, leftMargin + 5, yPosition);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text(`${item.value}`, leftMargin + 80, yPosition);
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     yPosition += 6;
   });
 
@@ -425,12 +425,12 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   // Recommendations Section
   checkNewPage();
   doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.text('AI Recommendations', leftMargin, yPosition);
   yPosition += 8;
 
   doc.setFontSize(10);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
 
   data.prediction.recommendations.forEach((rec, index) => {
     checkNewPage(15);
@@ -447,10 +447,10 @@ export function generateComprehensivePDFReport(data: ComprehensiveReportData): v
   doc.setFillColor(236, 254, 255);
   doc.roundedRect(leftMargin, yPosition, contentWidth, 50, 3, 3, 'F');
   doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.text('Executive Advisory', leftMargin + 5, yPosition + 8);
   doc.setFontSize(9);
-  doc.setFont(undefined, 'normal');
+  doc.setFont('helvetica', 'normal');
   
   const cleanAdvisory = data.prediction.advisory
     .replace(/\*\*/g, '')

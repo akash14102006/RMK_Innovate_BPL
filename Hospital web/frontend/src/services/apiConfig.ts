@@ -36,6 +36,17 @@ export const getApiConfig = () => {
     FLOWISE_API_KEY: userKeys.flowise || '',
     FLOWISE_API_URL: 'https://flowise.bharatpulselink.in',
 
+    // Firebase & Prediction API
+    PREDICTION_API_URL: (userKeys as any).predictionApiUrl || '',
+    FIREBASE_CONFIG: {
+      apiKey: (userKeys as any).firebaseApiKey || 'YOUR_FIREBASE_API_KEY',
+      authDomain: (userKeys as any).firebaseAuthDomain || '',
+      projectId: (userKeys as any).firebaseProjectId || 'YOUR_PROJECT_ID',
+      storageBucket: (userKeys as any).firebaseStorageBucket || '',
+      messagingSenderId: (userKeys as any).firebaseMessagingSenderId || '',
+      appId: (userKeys as any).firebaseAppId || '',
+    },
+
     // Alert Thresholds (static, no API key needed)
     THRESHOLDS: {
       PATIENT_LOAD: 150,

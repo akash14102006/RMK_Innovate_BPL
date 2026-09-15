@@ -1,0 +1,10 @@
+{
+  "name": "bharat-pulselink-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm --prefix \"Hospital web/frontend\" install",
+    "build": "npm --prefix \"Hospital web/frontend\" run build && node -e \"const fs=require('fs'); if(fs.existsSync('Hospital web/frontend/dist')){fs.cpSync('Hospital web/frontend/dist', 'dist', {recursive: true});}\"",
+    "preview": "npm --prefix \"Hospital web/frontend\" run preview"
+  }
+}

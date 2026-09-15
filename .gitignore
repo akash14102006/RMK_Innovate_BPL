@@ -1,4 +1,4 @@
-# Root level exclusions (strictly keep only the 3 requested directories)
+# Root level exclusions (strictly keep only the requested directories & deployment config)
 **/.git_backup/
 Hospital web.zip
 *.zip
@@ -6,7 +6,6 @@ video/
 video 2/
 video 3/
 scripts/
-package.json
 .claude/
 *.md
 

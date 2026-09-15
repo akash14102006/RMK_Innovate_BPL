@@ -5,7 +5,7 @@
  * It replaces the Firebase Google Sign-In flow.
  */
 
-const GOOGLE_CLIENT_ID = '16015111956-u63el706kb1h8fjlecf943vdrkdht4vf.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '16015111956-u63el706kb1h8fjlecf943vdrkdht4vf.apps.googleusercontent.com';
 
 export interface GoogleUser {
     email: string;

@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Bharat PulseLink",
+    "slug": "bharat-pulselink",
+    "owner": "akash14102006",
+    "version": "0.1.0",
+    "scheme": "bharatpulselink",
+    "orientation": "portrait",
+    "icon": "./assets/logo-icon.png",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8FAFC"
+    },
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.akash14102006.bharatpulselinkapp",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.akash14102006.bharatpulselinkapp",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo-icon.png",
+        "backgroundColor": "#F8FAFC"
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-dev-client",
+      "expo-localization",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Bharat PulseLink to access your camera to scan hospital and patient QR codes."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Bharat PulseLink to access your location to find nearby hospitals and emergency care."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "52b4242c-3545-4fde-a3cd-77950b48dd73"
+      }
+    }
+  }
+}

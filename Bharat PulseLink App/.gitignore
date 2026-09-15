@@ -1,0 +1,27 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Expo
+.expo/
+dist/
+
+# Android build outputs
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/.kotlin/
+android/app/.cxx/
+android/local.properties
+
+# macOS
+.DS_Store
+
+# vscode
+.vscode/
+
+# local env
+.env
+

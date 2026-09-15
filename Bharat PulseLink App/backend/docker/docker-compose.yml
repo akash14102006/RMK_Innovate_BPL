@@ -1,0 +1,82 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL + PostGIS ──────────────────────────────────────────────────
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: bharat_pulselink_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bpl_user
+      POSTGRES_PASSWORD: bpl_local_dev_only
+      POSTGRES_DB: bharat_pulselink_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bpl_user -d bharat_pulselink_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bpl_network
+
+  # ── PostgreSQL (test isolation) ───────────────────────────────────────────
+  postgres_test:
+    image: postgis/postgis:15-3.3
+    container_name: bharat_pulselink_db_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bpl_test_user
+      POSTGRES_PASSWORD: bpl_test_local_only
+      POSTGRES_DB: bharat_pulselink_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data  # In-memory — fast test resets
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bpl_test_user -d bharat_pulselink_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bpl_network
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: bharat_pulselink_redis
+    restart: unless-stopped
+    command: redis-server --requirepass bpl_redis_local_dev_only --save 60 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "bpl_redis_local_dev_only", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - bpl_network
+
+  # ── Redis (test) ──────────────────────────────────────────────────────────
+  redis_test:
+    image: redis:7-alpine
+    container_name: bharat_pulselink_redis_test
+    restart: unless-stopped
+    command: redis-server --requirepass bpl_redis_test_only --save ""
+    ports:
+      - "6380:6379"
+    networks:
+      - bpl_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  bpl_network:
+    driver: bridge

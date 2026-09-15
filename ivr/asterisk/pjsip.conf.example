@@ -1,0 +1,37 @@
+; ============================================================================
+; Bharat PulseLink — Asterisk PJSIP Configuration Example
+; Location: /etc/asterisk/pjsip.conf
+; ============================================================================
+
+[global]
+type=global
+user_agent=BharatPulseLink-Asterisk
+
+[transport-udp]
+type=transport
+protocol=udp
+bind=0.0.0.0:5060
+
+; Local Development SIP Endpoint 1001
+[1001]
+type=endpoint
+context=bharat-pulselink-test
+disallow=all
+allow=ulaw,alaw
+auth=1001-auth
+aors=1001
+force_rport=yes
+rewrite_contact=yes
+rtp_symmetric=yes
+direct_media=no
+
+[1001-auth]
+type=auth
+auth_type=userpass
+username=1001
+password=<SET_STRONG_DEVELOPMENT_SECRET_IN_ETC_ASTERISK_ONLY>
+
+[1001]
+type=aor
+max_contacts=1
+remove_existing=yes

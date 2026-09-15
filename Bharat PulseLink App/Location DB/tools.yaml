@@ -1,0 +1,8 @@
+sources:
+  my-postgres:
+    kind: postgres
+    host: localhost
+    port: 5432
+    database: bharat_pulselink
+    user: postgres
+    password: YOUR_REAL_PASSWORD

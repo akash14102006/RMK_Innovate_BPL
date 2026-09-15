@@ -1,0 +1,1160 @@
+[
+  {
+    "id": "TC001",
+    "title": "Sign in with valid email/password redirects to dashboard",
+    "description": "Verifies a user can sign in with correct credentials and is taken to the main dashboard.",
+    "category": "User Login",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify page title contains \"Login\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign In\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Dashboard\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Invalid password shows \"Invalid credentials\" and stays on login",
+    "description": "Verifies an incorrect email/password combination shows the expected error message without leaving the login page.",
+    "category": "User Login",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"fake.user@invalid-example.com\" into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"wrong-password-123\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign In\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Invalid credentials\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/login\""
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Sign Up mode toggle is visible and returns back to Sign In",
+    "description": "Verifies the user can switch between Sign In and Sign Up modes from the login page.",
+    "category": "User Login",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sign In\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Toggle between Sign In and Sign Up modes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sign Up\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Toggle between Sign In and Sign Up modes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sign In\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Sign up with email/password redirects to mandatory setup",
+    "description": "Verifies account creation via Sign Up mode routes first-time users to the required API setup screen.",
+    "category": "User Login",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Toggle between Sign In and Sign Up modes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sign Up\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"new.user+e2e@invalid-example.com\" into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"ValidPass!234\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign Up\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Sign in attempt with empty fields does not proceed to dashboard",
+    "description": "Verifies the login form blocks submission (or shows validation) when required fields are empty.",
+    "category": "User Login",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign In\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/login\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Dashboard\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Password field masks characters while typing",
+    "description": "Verifies the password input behaves as a protected field and does not display the typed password in plain text.",
+    "category": "User Login",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Password\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"{{LOGIN_PASSWORD}}\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Complete API setup successfully and proceed to dashboard",
+    "description": "Verifies a user can configure all required API keys, see a success confirmation, and access the dashboard afterward.",
+    "category": "API Setup",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Configure API Keys\" button"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Gemini API Key\" with \"valid-gemini-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Google Maps API Key\" with \"valid-maps-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Weather API Key\" with \"valid-weather-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save All Configuration\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Configuration saved\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Dashboard\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Attempt to save with only Gemini key shows missing keys validation",
+    "description": "Verifies required-key validation appears and the user remains on the setup page when saving incomplete configuration.",
+    "category": "API Setup",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Configure API Keys\" button"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Gemini API Key\" with \"valid-gemini-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save All Configuration\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Missing required API keys\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Configure API Keys action reveals the key entry form",
+    "description": "Verifies that clicking Configure API Keys exposes the expected input fields needed for configuration.",
+    "category": "API Setup",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Configure API Keys\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Gemini API Key\" field is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Google Maps API Key\" field is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Weather API Key\" field is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Save with no keys entered shows missing keys validation",
+    "description": "Verifies the application blocks saving when all required API key fields are empty and shows a visible validation message.",
+    "category": "API Setup",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Configure API Keys\" button"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save All Configuration\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Missing required API keys\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Partial keys entered (Maps only) shows missing keys validation",
+    "description": "Verifies saving with a different partial combination still triggers missing-keys validation and remains on setup.",
+    "category": "API Setup",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Configure API Keys\" button"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Google Maps API Key\" with \"valid-maps-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save All Configuration\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Missing required API keys\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Successful save enables continued access to dashboard from setup session",
+    "description": "Verifies that after saving configuration, the user can proceed to the dashboard without being blocked by setup again in the same session.",
+    "category": "API Setup",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" or \"Log in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/setup\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Configure API Keys\" button"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Gemini API Key\" with \"valid-gemini-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Google Maps API Key\" with \"valid-maps-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Weather API Key\" with \"valid-weather-key-123\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save All Configuration\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Configuration saved\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Dashboard\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Run AI triage analysis and view risk category + confidence",
+    "description": "Verifies a clinician can enter patient details and run AI triage to see risk category and confidence score.",
+    "category": "Patient Triage",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Patient\" into the patient name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"45\" into the age field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Female\" from the gender dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Fever, cough, shortness of breath\" into the symptoms field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Run AI Triage Analysis\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Risk\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Confidence\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Symptoms required validation blocks AI analysis",
+    "description": "Verifies validation error appears when symptoms are missing and the user remains on the triage form.",
+    "category": "Patient Triage",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Patient\" into the patient name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"30\" into the age field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Other\" from the gender dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Run AI Triage Analysis\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Symptoms required\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Run AI Triage Analysis\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Risk category is one of Low/Medium/High after analysis",
+    "description": "Verifies the results include a visible risk category label matching expected categories.",
+    "category": "Patient Triage",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Patient\" into the patient name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"67\" into the age field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Male\" from the gender dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Confusion, high fever\" into the symptoms field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Run AI Triage Analysis\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Low\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Medium\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Confidence score is displayed as part of results",
+    "description": "Verifies the results present a visible confidence score indicator after analysis completes.",
+    "category": "Patient Triage",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Test Patient\" into the patient name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"28\" into the age field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Female\" from the gender dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Fill \"Nausea and abdominal pain\" into the symptoms field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Run AI Triage Analysis\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Confidence\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"%\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "View current AQI and primary pollutant in Pollution Monitor",
+    "description": "Verifies the Pollution Monitor panel shows a current AQI reading and a primary pollutant label when opened from the dashboard.",
+    "category": "Pollution Monitor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Pollution Monitor\" to open the panel"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"AQI\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Primary pollutant\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Trend chart is visible and reflects ongoing updates",
+    "description": "Verifies the Pollution Monitor trend chart is present and shows recent/historical AQI trend information when the panel is opened.",
+    "category": "Pollution Monitor",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Pollution Monitor\" to open the panel"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"AQI trend chart\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Wait for 5 seconds"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Pollution Monitor panel opens without blocking the rest of the dashboard",
+    "description": "Verifies that opening the Pollution Monitor does not prevent the dashboard container from remaining visible/accessible.",
+    "category": "Pollution Monitor",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Pollution Monitor\" to open the panel"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Dashboard\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Pollution Monitor panel\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "View outbreak alerts list with severity tags",
+    "description": "Verifies the Epidemic Tracker loads and shows a list of current alerts with visible severity tags.",
+    "category": "Epidemic Tracker",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Epidemic Tracker\" in the dashboard navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Epidemic Tracker\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify at least one outbreak alert item is visible with a severity tag"
+      }
+    ]
+  },
+  {
+    "id": "TC021",
+    "title": "Open an alert to view details and predicted trend",
+    "description": "Verifies selecting an alert opens its details view including predicted trend information.",
+    "category": "Epidemic Tracker",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Epidemic Tracker\" in the dashboard navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first visible outbreak alert in the list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an alert details panel or details section is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Predicted trend\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC022",
+    "title": "View recommended actions for a selected alert",
+    "description": "Verifies the recommended operational actions section is visible for a selected alert.",
+    "category": "Epidemic Tracker",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Epidemic Tracker\" in the dashboard navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first visible outbreak alert in the list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Recommended actions\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC023",
+    "title": "Open affected regions map from an alert",
+    "description": "Verifies the user can open the affected regions view and see map details for a selected alert.",
+    "category": "Epidemic Tracker",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Epidemic Tracker\" in the dashboard navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first visible outbreak alert in the list"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"View affected regions\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Affected regions\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a map or region visualization container is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC024",
+    "title": "No external alerts returned shows empty state message",
+    "description": "Verifies the tracker displays an empty-state message when no alerts are available.",
+    "category": "Epidemic Tracker",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Epidemic Tracker\" in the dashboard navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No alerts available\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC025",
+    "title": "Refresh from empty state keeps 'No alerts available' when still empty",
+    "description": "Verifies clicking Refresh in an empty state does not break the UI and the empty message remains when no data appears.",
+    "category": "Epidemic Tracker",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Epidemic Tracker\" in the dashboard navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No alerts available\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Refresh\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No alerts available\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC026",
+    "title": "Alert details view can be dismissed/closed",
+    "description": "Verifies the user can close the alert details view and return to the alerts list without errors.",
+    "category": "Epidemic Tracker",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the email/username field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Sign in\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/dashboard\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Epidemic Tracker\" in the dashboard navigation"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first visible outbreak alert in the list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an alert details panel or details section is visible"
+      },
+      {
+        "type": "action",
+        "description": "Press \"Escape\" key"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the outbreak alerts list is visible"
+      }
+    ]
+  }
+]

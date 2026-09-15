@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bharat PulseLink — Master Launch Video</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0B4F6C;
+      --primary-light: #1F7A8C;
+      --primary-dark: #012A36;
+      --accent: #00A896;
+      --accent-glow: rgba(0, 168, 150, 0.4);
+      --success: #059669;
+      --warning: #D97706;
+      --danger: #DC2626;
+      --bg-dark: #021822;
+      --card-bg: rgba(6, 45, 60, 0.75);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --text-main: #FFFFFF;
+      --text-sub: #94A3B8;
+      --font-hero: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: #010E14;
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      padding: 20px;
+    }
+
+    .video-viewport-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16 / 9;
+      background: radial-gradient(circle at center, #063747 0%, #01161E 100%);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 40px var(--accent-glow);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    #cinematicCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .scene-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      transform: scale(0.97);
+      padding: 40px;
+      text-align: center;
+    }
+
+    .scene-container.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1);
+    }
+
+    /* Scene Common Styles */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(0, 168, 150, 0.15);
+      border: 1px solid var(--accent);
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #2DD4BF;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      backdrop-filter: blur(8px);
+    }
+
+    .badge.gold {
+      background: rgba(217, 119, 6, 0.15);
+      border-color: var(--warning);
+      color: #FBBF24;
+    }
+
+    .hero-title {
+      font-family: var(--font-hero);
+      font-size: clamp(26px, 4vw, 44px);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 14px;
+      background: linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 50%, #94A3B8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-title .highlight {
+      background: linear-gradient(135deg, #2DD4BF 0%, #00A896 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(14px, 1.8vw, 18px);
+      color: var(--text-sub);
+      max-width: 780px;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    /* Card & Mockup Grids */
+    .glass-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Scene 1 & 2: Friction & Cards */
+    .friction-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      max-width: 900px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .friction-item {
+      background: rgba(220, 38, 38, 0.08);
+      border: 1px solid rgba(220, 38, 38, 0.25);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: left;
+    }
+
+    .friction-item h4 {
+      color: #F87171;
+      font-size: 15px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .friction-item p {
+      font-size: 13px;
+      color: #CBD5E1;
+      line-height: 1.4;
+    }
+
+    /* Smartphone UI Mockup */
+    .phone-mockup {
+      width: 320px;
+      height: 480px;
+      background: #08202A;
+      border: 3px solid rgba(255, 255, 255, 0.25);
+      border-radius: 36px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      text-align: left;
+      position: relative;
+    }
+
+    .phone-header {
+      background: #0B4F6C;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .phone-body {
+      padding: 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+      background: #021822;
+    }
+
+    .ui-hospital-card {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .ui-hospital-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin-bottom: 2px;
+    }
+
+    .ui-hospital-meta {
+      font-size: 11px;
+      color: #2DD4BF;
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .ui-doctor-slot {
+      background: rgba(0, 168, 150, 0.15);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      color: #E2E8F0;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Feature Phone Visualizer */
+    .feature-phone-container {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      max-width: 800px;
+      text-align: left;
+    }
+
+    .basic-phone {
+      width: 220px;
+      height: 380px;
+      background: #1E293B;
+      border: 3px solid #475569;
+      border-radius: 24px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .basic-screen {
+      height: 120px;
+      background: #0284C7;
+      color: #FFFFFF;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .basic-keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      flex: 1;
+    }
+
+    .key-btn {
+      background: #334155;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #F1F5F9;
+    }
+
+    .key-btn.active {
+      background: #00A896;
+      color: #FFFFFF;
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    /* QR Code & Consent Screen */
+    .qr-showcase {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+    }
+
+    .qr-canvas-box {
+      width: 240px;
+      height: 240px;
+      background: #FFFFFF;
+      border-radius: 20px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      box-shadow: 0 0 35px var(--accent-glow);
+    }
+
+    .qr-timer-ring {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      right: -6px;
+      bottom: -6px;
+      border: 3px dashed var(--accent);
+      border-radius: 26px;
+      animation: spinRing 20s linear infinite;
+    }
+
+    @keyframes spinRing {
+      100% { transform: rotate(360deg); }
+    }
+
+    .consent-toggles {
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 320px;
+    }
+
+    .scope-toggle {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .toggle-switch {
+      width: 34px;
+      height: 18px;
+      background: #059669;
+      border-radius: 999px;
+      position: relative;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 14px;
+      height: 14px;
+      background: #FFFFFF;
+      border-radius: 50%;
+    }
+
+    /* Business Model Pillars */
+    .pricing-pillars {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 800px;
+      width: 100%;
+      margin-top: 16px;
+    }
+
+    .pricing-card {
+      background: var(--card-bg);
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 28px;
+      text-align: center;
+    }
+
+    .pricing-card.patient-free {
+      border-color: var(--accent);
+      background: linear-gradient(180deg, rgba(0, 168, 150, 0.15) 0%, rgba(2, 24, 34, 0.8) 100%);
+    }
+
+    .pricing-amount {
+      font-family: var(--font-hero);
+      font-size: 44px;
+      font-weight: 800;
+      color: #2DD4BF;
+      margin: 10px 0;
+    }
+
+    /* Final Brand Lockup */
+    .brand-logo-frame {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-emblem-svg {
+      width: 90px;
+      height: 90px;
+      filter: drop-shadow(0 0 25px var(--accent));
+    }
+
+    /* Overlay Controls */
+    .controls-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: linear-gradient(transparent, rgba(1, 14, 20, 0.95));
+      padding: 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 10;
+      opacity: 0.9;
+      transition: opacity 0.3s;
+    }
+
+    .timeline-scrubber-container {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .timeline-progress {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00A896, #2DD4BF);
+      border-radius: 3px;
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #FFFFFF;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ctrl-btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #01161E;
+    }
+
+    .act-tag {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #2DD4BF;
+    }
+
+    /* Subtitles Banner */
+    .subtitles-banner {
+      position: absolute;
+      bottom: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(1, 22, 30, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #F8FAFC;
+      max-width: 80%;
+      text-align: center;
+      z-index: 5;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="video-viewport-wrapper" id="videoWrapper">
+    <canvas id="cinematicCanvas"></canvas>
+
+    <!-- Subtitle Bar -->
+    <div class="subtitles-banner" id="subtitleBox">
+      In India, every hospital visit shouldn't mean starting from zero.
+    </div>
+
+    <!-- ACT 1: THE FRICTION -->
+    <div class="scene-container active" id="scene-0">
+      <div class="badge">Act 1 • The Healthcare Reality</div>
+      <h1 class="hero-title">Healthcare Shouldn't Make Patients <span class="highlight">Start From Zero</span></h1>
+      <p class="hero-subtitle">Every day, millions of Indian patients navigate fragmented hospital desks, lost papers, and repeated questions.</p>
+      
+      <div class="friction-grid">
+        <div class="friction-item">
+          <h4>📄 Lost Records</h4>
+          <p>Carrying thick paper folders across different clinics and diagnostic centers.</p>
+        </div>
+        <div class="friction-item">
+          <h4>⏳ Queue Delays</h4>
+          <p>Waiting in repetitive registration lines to re-enter the same personal details.</p>
+        </div>
+        <div class="friction-item">
+          <h4>📵 Digital Gap</h4>
+          <p>Over 400 Million feature-phone users excluded from modern smartphone healthcare apps.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACT 2: BRAND CONVERGENCE -->
+    <div class="scene-container" id="scene-1">
+      <div class="badge gold">Act 2 • The Innovation</div>
+      <div class="brand-logo-frame">
+        <svg class="brand-emblem-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" stroke="#00A896" stroke-width="4" stroke-dasharray="6 4"/>
+          <path d="M20 50H36L44 26L56 74L64 50H80" stroke="#2DD4BF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h1 class="hero-title">BHARAT <span class="highlight">PULSELINK</span></h1>
+        <p class="hero-subtitle" style="font-size: 20px; font-weight: 600; color: #FFFFFF;">India's Shared Memory for Every Patient, Every Hospital</p>
+      </div>
+    </div>
+
+    <!-- ACT 3: SMARTPHONE JOURNEY -->
+    <div class="scene-container" id="scene-2">
+      <div style="display: flex; align-items: center; gap: 40px; text-align: left; max-width: 950px;">
+        <div>
+          <div class="badge">Act 3 • Smartphone Access</div>
+          <h2 class="hero-title" style="font-size: 32px;">Discover, Filter & Book <span class="highlight">In Seconds</span></h2>
+          <p class="hero-subtitle" style="font-size: 15px;">Search nearby government and private hospitals by specialty, view verified doctor slots, and navigate directly with live turn-by-turn directions.</p>
+          <div style="display: flex; gap: 12px; margin-top: 10px;">
+            <div class="glass-card" style="padding: 12px 18px;">
+              <div style="color: #2DD4BF; font-weight: 700; font-size: 18px;">GPS Verified</div>
+              <div style="font-size: 12px; color: var(--text-sub);">Accurate Hospital Locations</div>
+            </div>
+            <div class="glass-card" style="padding: 12px 18px;">
+              <div style="color: #2DD4BF; font-weight: 700; font-size: 18px;">Confirmed Slots</div>
+              <div style="font-size: 12px; color: var(--text-sub);">Zero Booking Surcharge</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone-mockup">
+          <div class="phone-header">
+            <span>Bharat PulseLink</span>
+            <span style="color: #2DD4BF;">● Live</span>
+          </div>
+          <div class="phone-body">
+            <div class="ui-hospital-card">
+              <div class="ui-hospital-name">AIIMS & District Hospital</div>
+              <div class="ui-hospital-meta">📍 2.4 km • Cardiology • 24x7</div>
+              <div class="ui-doctor-slot">
+                <span>Dr. Ananya Sharma</span>
+                <span style="color: #2DD4BF; font-weight: 600;">10:30 AM Slot</span>
+              </div>
+            </div>
+            <div class="ui-hospital-card" style="opacity: 0.8;">
+              <div class="ui-hospital-name">City Care Multispecialty</div>
+              <div class="ui-hospital-meta">📍 4.1 km • General Medicine</div>
+              <div class="ui-doctor-slot">
+                <span>Dr. Rajesh Verma</span>
+                <span style="color: #2DD4BF; font-weight: 600;">11:15 AM Slot</span>
+              </div>
+            </div>
+            <div style="background: rgba(0, 168, 150, 0.2); border: 1px solid var(--accent); border-radius: 8px; padding: 8px; text-align: center; font-size: 11px; font-weight: 600; color: #2DD4BF;">
+              ✓ Appointment Confirmed (Demonstration Data)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACT 4: FEATURE PHONE IVR -->
+    <div class="scene-container" id="scene-3">
+      <div class="badge gold">Act 4 • Digital Inclusion</div>
+      <h2 class="hero-title">Healthcare Access <span class="highlight">Without A Smartphone</span></h2>
+      <p class="hero-subtitle">Dial the toll-free IVR number. Select your language, enter your PIN code, choose your specialty, and confirm your booking instantly via SMS.</p>
+      
+      <div class="feature-phone-container">
+        <div class="basic-phone">
+          <div class="basic-screen">
+            <div>BHARAT PULSELINK IVR</div>
+            <div style="font-size: 10px;">PIN: 400001<br>Cardiology Dept<br>Hospital: District General</div>
+            <div style="color: #FDE047;">Press 1 to Confirm</div>
+          </div>
+          <div class="basic-keypad">
+            <div class="key-btn active">1</div>
+            <div class="key-btn">2</div>
+            <div class="key-btn">3</div>
+            <div class="key-btn">4</div>
+            <div class="key-btn">5</div>
+            <div class="key-btn">6</div>
+            <div class="key-btn">7</div>
+            <div class="key-btn">8</div>
+            <div class="key-btn">9</div>
+            <div class="key-btn">*</div>
+            <div class="key-btn">0</div>
+            <div class="key-btn">#</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div class="glass-card" style="padding: 16px;">
+            <h4 style="color: #2DD4BF; font-size: 15px; margin-bottom: 4px;">🎙️ Multi-Language Voice Guidance</h4>
+            <p style="font-size: 13px; color: #CBD5E1;">Hindi, Tamil, Telugu, Bengali, Marathi, and English voice assistance.</p>
+          </div>
+          <div class="glass-card" style="padding: 16px;">
+            <h4 style="color: #2DD4BF; font-size: 15px; margin-bottom: 4px;">📩 Instant SMS Appointment Pass</h4>
+            <p style="font-size: 13px; color: #CBD5E1;">Receive a confirmed token code and OPD directions directly on basic phones.</p>
+          </div>
+          <div style="font-size: 12px; color: #94A3B8; font-style: italic;">
+            "Healthcare access should not depend on owning a smartphone."
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACT 5: SECURE QR & CONSENT -->
+    <div class="scene-container" id="scene-4">
+      <div class="badge">Act 5 • Privacy & Dynamic QR</div>
+      <h2 class="hero-title">Granular Consent. <span class="highlight">Zero Data In The QR.</span></h2>
+      <p class="hero-subtitle">Our QR code is a transient cryptographic handshake—not a permanent ID. It contains zero raw medical records and zero Aadhaar data.</p>
+      
+      <div class="qr-showcase">
+        <div class="qr-canvas-box">
+          <div class="qr-timer-ring"></div>
+          <svg width="150" height="150" viewBox="0 0 100 100" fill="#01161E">
+            <!-- Stylized QR Pattern -->
+            <rect x="10" y="10" width="25" height="25" fill="#012A36" stroke="#00A896" stroke-width="2"/>
+            <rect x="15" y="15" width="15" height="15" fill="#00A896"/>
+            <rect x="65" y="10" width="25" height="25" fill="#012A36" stroke="#00A896" stroke-width="2"/>
+            <rect x="70" y="15" width="15" height="15" fill="#00A896"/>
+            <rect x="10" y="65" width="25" height="25" fill="#012A36" stroke="#00A896" stroke-width="2"/>
+            <rect x="15" y="70" width="15" height="15" fill="#00A896"/>
+            <rect x="42" y="42" width="16" height="16" fill="#00A896"/>
+            <circle cx="50" cy="50" r="4" fill="#FFFFFF"/>
+          </svg>
+          <div style="font-family: var(--font-mono); font-size: 11px; color: #012A36; font-weight: 700; margin-top: 6px;">
+            SESSION EXPIRES: 48s
+          </div>
+        </div>
+
+        <div class="consent-toggles">
+          <div class="scope-toggle">
+            <span>Basic Identity & Age</span>
+            <div class="toggle-switch"></div>
+          </div>
+          <div class="scope-toggle">
+            <span>Allergies & Vitals</span>
+            <div class="toggle-switch"></div>
+          </div>
+          <div class="scope-toggle">
+            <span>Past Prescriptions (Last 6 Mos)</span>
+            <div class="toggle-switch"></div>
+          </div>
+          <div class="scope-toggle" style="opacity: 0.6;">
+            <span>Full Medical History</span>
+            <span style="font-size: 11px; color: #94A3B8;">Revoked</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACT 6: CHECK-IN & QUEUE -->
+    <div class="scene-container" id="scene-5">
+      <div class="badge">Act 6 • Instant Check-In</div>
+      <h2 class="hero-title">Hospital Arrival to <span class="highlight">Doctor Queue in Seconds</span></h2>
+      <p class="hero-subtitle">Reception scans the secure token. Registration is completed instantly with zero manual paperwork.</p>
+      
+      <div style="display: flex; gap: 24px; max-width: 850px; width: 100%; margin-top: 16px;">
+        <div class="glass-card" style="flex: 1; text-align: left;">
+          <div style="font-size: 12px; color: #2DD4BF; font-weight: 600; text-transform: uppercase;">Hospital Reception Sync</div>
+          <h3 style="font-size: 20px; margin: 6px 0;">Token #B-14 Generated</h3>
+          <p style="font-size: 13px; color: #CBD5E1; margin-bottom: 12px;">Patient profile authenticated via cryptographic exchange.</p>
+          <div style="background: rgba(5, 150, 105, 0.2); border: 1px solid var(--success); padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #34D399;">
+            ✓ OPD Registration Verified
+          </div>
+        </div>
+
+        <div class="glass-card" style="flex: 1; text-align: left;">
+          <div style="font-size: 12px; color: #FBBF24; font-weight: 600; text-transform: uppercase;">Live OPD Queue Tracker</div>
+          <h3 style="font-size: 20px; margin: 6px 0;">Estimated Wait: 12 Mins</h3>
+          <p style="font-size: 13px; color: #CBD5E1; margin-bottom: 12px;">Counter 3 • Dr. Ananya Sharma (Room 204)</p>
+          <div style="background: rgba(255, 255, 255, 0.08); height: 8px; border-radius: 4px; overflow: hidden;">
+            <div style="background: #2DD4BF; width: 75%; height: 100%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACT 7: HEALTH RECORD CONTINUITY -->
+    <div class="scene-container" id="scene-6">
+      <div class="badge gold">Act 7 • Health Continuity</div>
+      <h2 class="hero-title">The Visit Doesn't End When You Leave</h2>
+      <p class="hero-subtitle">"Healthcare That Remembers." Prescriptions, diagnostic lab results, and discharge notes automatically link into your longitudinal health memory.</p>
+      
+      <div style="display: flex; gap: 16px; max-width: 900px; width: 100%; margin-top: 14px;">
+        <div class="glass-card" style="flex: 1; text-align: left; padding: 18px;">
+          <div style="font-size: 12px; color: #2DD4BF;">🔬 Diagnostic Lab</div>
+          <div style="font-size: 15px; font-weight: 700; margin: 4px 0;">Complete Blood Count (CBC)</div>
+          <div style="font-size: 12px; color: #94A3B8;">Verified by Apex Pathology Lab • PDF Attached</div>
+        </div>
+        <div class="glass-card" style="flex: 1; text-align: left; padding: 18px;">
+          <div style="font-size: 12px; color: #2DD4BF;">💊 Verified Rx</div>
+          <div style="font-size: 15px; font-weight: 700; margin: 4px 0;">Amoxicillin 500mg (5 Days)</div>
+          <div style="font-size: 12px; color: #94A3B8;">Digital Signature Validated • Refill Reminders Active</div>
+        </div>
+        <div class="glass-card" style="flex: 1; text-align: left; padding: 18px;">
+          <div style="font-size: 12px; color: #2DD4BF;">📋 Care Plan</div>
+          <div style="font-size: 15px; font-weight: 700; margin: 4px 0;">Follow-Up in 14 Days</div>
+          <div style="font-size: 12px; color: #94A3B8;">Calendar Sync & SMS Alert Scheduled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACT 8 & 9: BUSINESS MODEL -->
+    <div class="scene-container" id="scene-7">
+      <div class="badge">Act 8 & 9 • Transparent Model</div>
+      <h2 class="hero-title"><span class="highlight">Free For Patients.</span> Built For Hospitals.</h2>
+      <p class="hero-subtitle">Zero patient fees, zero hidden booking charges. Supported and subscribed to by government and private hospital networks.</p>
+      
+      <div class="pricing-pillars">
+        <div class="pricing-card patient-free">
+          <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #2DD4BF;">Every Indian Patient</div>
+          <div class="pricing-amount">₹0</div>
+          <p style="font-size: 14px; color: #F1F5F9;">100% Free App & IVR Access</p>
+          <div style="font-size: 12px; color: #94A3B8; margin-top: 8px;">No subscription • No pay-per-booking</div>
+        </div>
+
+        <div class="pricing-card">
+          <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94A3B8;">Govt & Private Hospitals</div>
+          <div class="pricing-amount" style="color: #FFFFFF; font-size: 32px; margin: 18px 0;">Enterprise SaaS</div>
+          <p style="font-size: 14px; color: #CBD5E1;">OPD Management & Data Exchange</p>
+          <div style="font-size: 12px; color: #94A3B8; margin-top: 8px;">Front-desk acceleration & EHR integration</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACT 10 & 11: NATIONAL FINALE -->
+    <div class="scene-container" id="scene-8">
+      <div class="brand-logo-frame">
+        <svg class="brand-emblem-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" stroke="#00A896" stroke-width="4" stroke-dasharray="6 4"/>
+          <path d="M20 50H36L44 26L56 74L64 50H80" stroke="#2DD4BF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h1 class="hero-title" style="font-size: 46px;">BHARAT <span class="highlight">PULSELINK</span></h1>
+        <p style="font-size: 20px; font-weight: 600; color: #FFFFFF; max-width: 650px;">
+          India's Shared Memory for Every Patient, Every Hospital.
+        </p>
+        <div style="display: flex; gap: 12px; margin-top: 10px;">
+          <div class="badge">📱 Smartphone App</div>
+          <div class="badge gold">📞 Toll-Free IVR</div>
+          <div class="badge">🔒 Dynamic QR Consent</div>
+        </div>
+        <div style="font-size: 14px; color: #2DD4BF; margin-top: 14px; font-weight: 600;">
+          One Connected Healthcare Journey For All Of India.
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline & Video Controls -->
+    <div class="controls-bar">
+      <div class="timeline-scrubber-container" id="timelineContainer">
+        <div class="timeline-progress" id="progressBar"></div>
+      </div>
+      <div class="controls-row">
+        <div class="btn-group">
+          <button class="ctrl-btn" id="playBtn">▶ Play</button>
+          <button class="ctrl-btn" id="audioToggle">🔊 Music: ON</button>
+          <button class="ctrl-btn" id="voToggle">🎙️ VO: ON</button>
+        </div>
+        <div class="act-tag" id="timeDisplay">0:00 / 1:20 • ACT 1</div>
+        <div class="btn-group">
+          <button class="ctrl-btn" id="posterBtn">📸 Save Poster (brag.jpg)</button>
+          <button class="ctrl-btn" id="fullscreenBtn">⛶ Fullscreen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Narrative Scene Timings (Total: 80s @ 60fps)
+    const SCENES = [
+      { id: 'scene-0', start: 0, end: 8, subtitle: "In India, every hospital visit shouldn't mean starting from zero." },
+      { id: 'scene-1', start: 8, end: 15, subtitle: "Meet Bharat PulseLink. India's connected healthcare access network." },
+      { id: 'scene-2', start: 15, end: 27, subtitle: "On the mobile app, discover verified hospitals, filter specialties, and book appointments in seconds." },
+      { id: 'scene-3', start: 27, end: 38, subtitle: "Because healthcare must include everyone—patients without a smartphone can simply dial our toll-free IVR." },
+      { id: 'scene-4', start: 38, end: 48, subtitle: "When you arrive, connect securely. A dynamic QR session shares only what you consent to—with zero raw data leakage." },
+      { id: 'scene-5', start: 48, end: 54, subtitle: "Check in instantly. Your digital token enters the queue with live wait times." },
+      { id: 'scene-6', start: 54, end: 66, subtitle: "And the visit doesn't end when you leave. Lab results and prescriptions flow into your secure health memory." },
+      { id: 'scene-7', start: 66, end: 74, subtitle: "Always free for every patient. Built and subscribed to by hospitals." },
+      { id: 'scene-8', start: 74, end: 80, subtitle: "Bharat PulseLink. India's Shared Memory for Every Patient, Every Hospital." }
+    ];
+
+    const TOTAL_DURATION = 80;
+    let currentTime = 0;
+    let isPlaying = false;
+    let musicEnabled = true;
+    let voEnabled = true;
+    let audioCtx = null;
+    let synthOsc = null;
+    let synthGain = null;
+
+    const playBtn = document.getElementById('playBtn');
+    const audioToggle = document.getElementById('audioToggle');
+    const voToggle = document.getElementById('voToggle');
+    const posterBtn = document.getElementById('posterBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const progressBar = document.getElementById('progressBar');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const subtitleBox = document.getElementById('subtitleBox');
+    const timelineContainer = document.getElementById('timelineContainer');
+    const videoWrapper = document.getElementById('videoWrapper');
+
+    // Canvas Background Particles & Pulse Wave
+    const canvas = document.getElementById('cinematicCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = videoWrapper.clientWidth;
+      canvas.height = videoWrapper.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Particle Setup
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        radius: Math.random() * 2 + 1,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        alpha: Math.random() * 0.5 + 0.2
+      });
+    }
+
+    function renderBackground() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Pulse Wave
+      const pulseY = canvas.height * 0.5 + Math.sin(currentTime * 2) * 20;
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(0, 168, 150, 0.15)';
+      ctx.lineWidth = 2;
+      for (let x = 0; x < canvas.width; x += 10) {
+        const y = canvas.height * 0.5 + Math.sin((x * 0.01) + (currentTime * 3)) * 30;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Particles
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(45, 212, 191, ${p.alpha})`;
+        ctx.fill();
+      });
+
+      requestAnimationFrame(renderBackground);
+    }
+    renderBackground();
+
+    // Web Audio Synthesizer for Cinematic Music & Cues
+    function initAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Master Ambient Synth Generator
+      synthGain = audioCtx.createGain();
+      synthGain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      synthGain.connect(audioCtx.destination);
+    }
+
+    function playAudioTone(freq, type = 'sine', duration = 0.4, vol = 0.15) {
+      if (!musicEnabled || !audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    // Voiceover Synthesis (Web Speech API)
+    let currentSpeechUtterance = null;
+    function speakSubtitle(text) {
+      if (!voEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      currentSpeechUtterance = new SpeechSynthesisUtterance(text);
+      currentSpeechUtterance.rate = 1.0;
+      currentSpeechUtterance.pitch = 1.0;
+      window.speechSynthesis.speak(currentSpeechUtterance);
+    }
+
+    // Scene & Timeline Controller
+    let lastSceneIndex = -1;
+    function updateTimeline(time) {
+      currentTime = Math.min(TOTAL_DURATION, Math.max(0, time));
+      const progressPercent = (currentTime / TOTAL_DURATION) * 100;
+      progressBar.style.width = `${progressPercent}%`;
+
+      const mins = Math.floor(currentTime / 60);
+      const secs = Math.floor(currentTime % 60).toString().padStart(2, '0');
+      
+      // Determine active scene
+      let activeIndex = 0;
+      for (let i = 0; i < SCENES.length; i++) {
+        if (currentTime >= SCENES[i].start && currentTime < SCENES[i].end) {
+          activeIndex = i;
+          break;
+        }
+      }
+      if (currentTime >= TOTAL_DURATION) activeIndex = SCENES.length - 1;
+
+      timeDisplay.textContent = `${mins}:${secs} / 1:20 • ACT ${activeIndex + 1}`;
+      subtitleBox.textContent = SCENES[activeIndex].subtitle;
+
+      // Handle Scene Visibility Transition
+      if (activeIndex !== lastSceneIndex) {
+        SCENES.forEach((s, idx) => {
+          const el = document.getElementById(s.id);
+          if (el) {
+            if (idx === activeIndex) {
+              el.classList.add('active');
+            } else {
+              el.classList.remove('active');
+            }
+          }
+        });
+
+        // Beat Sound Cue on Scene Shift
+        playAudioTone(220 + (activeIndex * 40), 'triangle', 0.5, 0.18);
+        if (isPlaying) {
+          speakSubtitle(SCENES[activeIndex].subtitle);
+        }
+        lastSceneIndex = activeIndex;
+      }
+    }
+
+    // Playback Loop
+    let lastTimestamp = null;
+    function playbackLoop(timestamp) {
+      if (!isPlaying) return;
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const dt = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      currentTime += dt;
+      if (currentTime >= TOTAL_DURATION) {
+        currentTime = TOTAL_DURATION;
+        pausePlayback();
+      }
+      updateTimeline(currentTime);
+      if (isPlaying) requestAnimationFrame(playbackLoop);
+    }
+
+    function startPlayback() {
+      initAudio();
+      isPlaying = true;
+      lastTimestamp = null;
+      playBtn.textContent = '⏸ Pause';
+      speakSubtitle(SCENES[Math.max(0, lastSceneIndex)].subtitle);
+      requestAnimationFrame(playbackLoop);
+    }
+
+    function pausePlayback() {
+      isPlaying = false;
+      playBtn.textContent = '▶ Play';
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    playBtn.addEventListener('click', () => {
+      if (isPlaying) pausePlayback();
+      else startPlayback();
+    });
+
+    audioToggle.addEventListener('click', () => {
+      musicEnabled = !musicEnabled;
+      audioToggle.textContent = musicEnabled ? '🔊 Music: ON' : '🔇 Music: OFF';
+    });
+
+    voToggle.addEventListener('click', () => {
+      voEnabled = !voEnabled;
+      voToggle.textContent = voEnabled ? '🎙️ VO: ON' : '🔇 VO: OFF';
+      if (!voEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    });
+
+    timelineContainer.addEventListener('click', (e) => {
+      const rect = timelineContainer.getBoundingClientRect();
+      const clickRatio = (e.clientX - rect.left) / rect.width;
+      updateTimeline(clickRatio * TOTAL_DURATION);
+    });
+
+    fullscreenBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        videoWrapper.requestFullscreen().catch(err => {});
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    // Poster Frame Capture
+    posterBtn.addEventListener('click', () => {
+      // Capture canvas + frame
+      const link = document.createElement('a');
+      link.download = 'brag.jpg';
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+      alert('Frame captured and saved as brag.jpg!');
+    });
+
+    // Initial setup
+    updateTimeline(0);
+  </script>
+</body>
+</html>

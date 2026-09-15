@@ -1,0 +1,22 @@
+≡ƒÜÇ Starting test execution...
+Proxy port: 51920
+Tunnel started successfully! Proxy URL: http://63884224-2435-4c6c-a7c9-e422a82dc43e:MAbzDik72MiZlAv8AK3i2L3aP1gTkfda@tun.testsprite.com:8080
+ΓÜí Running tests...
+This process may take anywhere from several minutes up to 15 minutes to complete.
+
+Γ£à Please ensure:
+  ΓÇó Your local servers are running and reachable
+  ΓÇó Your internet connection remains stable throughout the process
+Tunnel probe attempt 1 failed: read ECONNRESET ΓÇö retrying in 3s...
+Tunnel probe failed after 2 attempts: read ECONNRESET
+Error occurred. Cleaning up tunnel...
+HTTP Proxy has been closed.
+Tunnel has been closed.
+Γ¥î Test execution failed: Error: Failed to generate and execute tests: Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+    at _generateCodeAndExecute (file:///C:/Users/akash/AppData/Local/npm-cache/_npx/8ddf6bea01b2519d/node_modules/@testsprite/testsprite-mcp/dist/index.js:136801:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async file:///C:/Users/akash/AppData/Local/npm-cache/_npx/8ddf6bea01b2519d/node_modules/@testsprite/testsprite-mcp/dist/index.js:134300:24
+    at async Command.<anonymous> (file:///C:/Users/akash/AppData/Local/npm-cache/_npx/8ddf6bea01b2519d/node_modules/@testsprite/testsprite-mcp/dist/index.js:141369:9)
+    at async Command.parseAsync (file:///C:/Users/akash/AppData/Local/npm-cache/_npx/8ddf6bea01b2519d/node_modules/@testsprite/testsprite-mcp/dist/index.js:139638:6)
+    at async main (file:///C:/Users/akash/AppData/Local/npm-cache/_npx/8ddf6bea01b2519d/node_modules/@testsprite/testsprite-mcp/dist/index.js:141614:9)

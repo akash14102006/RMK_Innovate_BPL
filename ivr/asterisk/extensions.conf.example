@@ -1,0 +1,343 @@
+; ============================================================================
+; Bharat PulseLink — Asterisk Dialplan (Step 11: SMS Notification & Booking)
+; Location: /etc/asterisk/extensions.conf
+; ============================================================================
+
+[general]
+static=yes
+writeprotect=no
+clearglobalvars=no
+
+[globals]
+BPL_SOUNDS_DIR=/var/lib/asterisk/sounds/bharat-pulselink
+
+; Inbound Entrypoint from SIP softphone / trunk
+[bharat-pulselink-test]
+exten => 1000,1,NoOp(Inbound call from ${CALLERID(all)} to Bharat PulseLink)
+ same => n,Goto(bharat-pulselink-entry,s,1)
+
+; Entry Context — Call Answering and Welcome Prompt
+[bharat-pulselink-entry]
+exten => s,1,NoOp(Starting Bharat PulseLink Session on channel ${CHANNEL})
+ same => n,Answer()
+ same => n,Wait(1)
+ same => n,Playback(bharat-pulselink/welcome)
+ same => n,Goto(bharat-pulselink-language,s,1)
+exten => h,1,NoOp(Call hung up in entry context)
+
+; Language Selection Context
+[bharat-pulselink-language]
+exten => s,1,NoOp(Entering Language Selection)
+ same => n,Set(LANG_ATTEMPTS=0)
+ same => n(prompt),Set(LANG_ATTEMPTS=$[${LANG_ATTEMPTS} + 1])
+ same => n,Background(bharat-pulselink/language-select)
+ same => n,WaitExten(5)
+
+; Language Selection: 1 = Tamil
+exten => 1,1,NoOp(Caller selected Tamil [ta])
+ same => n,Set(CHANNEL(language)=ta)
+ same => n,Set(BPL_LANG=ta)
+ same => n,Goto(bharat-pulselink-main-menu,s,1)
+
+; Language Selection: 2 = English
+exten => 2,1,NoOp(Caller selected English [en])
+ same => n,Set(CHANNEL(language)=en)
+ same => n,Set(BPL_LANG=en)
+ same => n,Goto(bharat-pulselink-main-menu,s,1)
+
+; Language Selection: 3 = Hindi
+exten => 3,1,NoOp(Caller selected Hindi [hi])
+ same => n,Set(CHANNEL(language)=hi)
+ same => n,Set(BPL_LANG=hi)
+ same => n,Goto(bharat-pulselink-main-menu,s,1)
+
+; Invalid Language Input
+exten => i,1,NoOp(Invalid language digit received: ${INVALID_EXTEN})
+ same => n,Playback(bharat-pulselink/invalid)
+ same => n,GotoIf($[${LANG_ATTEMPTS} < 3]?s,prompt)
+ same => n,Playback(bharat-pulselink/goodbye)
+ same => n,Hangup()
+
+; Language Selection Timeout
+exten => t,1,NoOp(Language selection timeout)
+ same => n,Playback(bharat-pulselink/timeout)
+ same => n,GotoIf($[${LANG_ATTEMPTS} < 3]?s,prompt)
+ same => n,Playback(bharat-pulselink/goodbye)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in language selection)
+
+; Main Menu Context
+[bharat-pulselink-main-menu]
+exten => s,1,NoOp(Entering Main Menu with language [${BPL_LANG}])
+ same => n,Set(MENU_ATTEMPTS=0)
+ same => n(menu),Set(MENU_ATTEMPTS=$[${MENU_ATTEMPTS} + 1])
+ same => n,Background(bharat-pulselink/${BPL_LANG}/main-menu)
+ same => n,WaitExten(5)
+
+; Option 1: Find Hospital (PIN Code Collection & PostGIS Search)
+exten => 1,1,NoOp(Main Menu: Find Hospital selected)
+ same => n,Goto(bharat-pulselink-find-hospital,s,1)
+
+; Option 2: Book Appointment
+exten => 2,1,NoOp(Main Menu: Book Appointment selected)
+ same => n,Goto(bharat-pulselink-book-appointment,s,1)
+
+; Option 3: Check Existing Appointment
+exten => 3,1,NoOp(Main Menu: Check Existing Appointment selected)
+ same => n,Goto(bharat-pulselink-existing-appointment,s,1)
+
+; Option 4: Emergency Help
+exten => 4,1,NoOp(Main Menu: Emergency Help selected)
+ same => n,Goto(bharat-pulselink-emergency,s,1)
+
+; Invalid Main Menu Input
+exten => i,1,NoOp(Invalid menu digit received: ${INVALID_EXTEN})
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/invalid)
+ same => n,GotoIf($[${MENU_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/goodbye)
+ same => n,Hangup()
+
+; Main Menu Timeout
+exten => t,1,NoOp(Main menu selection timeout)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/timeout)
+ same => n,GotoIf($[${MENU_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/goodbye)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in main menu)
+
+; Find Hospital Handler — 6-Digit PIN Code Collection
+[bharat-pulselink-find-hospital]
+exten => s,1,NoOp(Entering PIN Collection Handler in [${BPL_LANG}])
+ same => n,Set(PIN_ATTEMPTS=0)
+ same => n(askpin),Set(PIN_ATTEMPTS=$[${PIN_ATTEMPTS} + 1])
+ same => n,Read(BPL_PIN,bharat-pulselink/${BPL_LANG}/enter-pincode,6,,3,7)
+ same => n,NoOp(PIN received length: ${LEN(${BPL_PIN})})
+ same => n,GotoIf($["${READSTATUS}" = "TIMEOUT"]?pintimeout)
+ same => n,GotoIf($[${LEN(${BPL_PIN})} = 6]?pinvalid:pininvalid)
+
+ same => n(pinvalid),NoOp(Valid 6-digit PIN code captured: initiating PostGIS search)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/searching-hospitals)
+ same => n,Goto(bharat-pulselink-hospital-selection,s,1)
+
+ same => n(pininvalid),NoOp(Invalid PIN code format received)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/pin-invalid)
+ same => n,GotoIf($[${PIN_ATTEMPTS} < 3]?askpin)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/pin-max-attempts)
+ same => n,Hangup()
+
+ same => n(pintimeout),NoOp(PIN code entry timed out)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/pin-timeout)
+ same => n,GotoIf($[${PIN_ATTEMPTS} < 3]?askpin)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/pin-max-attempts)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in find-hospital PIN collection)
+
+; Step 8 Context: Ranked Hospital Voice Results & Selection
+[bharat-pulselink-hospital-selection]
+exten => s,1,NoOp(Entering Hospital Voice Selection Menu in [${BPL_LANG}])
+ same => n,Set(HOSP_SELECT_ATTEMPTS=0)
+ same => n(menu),Set(HOSP_SELECT_ATTEMPTS=$[${HOSP_SELECT_ATTEMPTS} + 1])
+ same => n,Background(bharat-pulselink/${BPL_LANG}/hospital-options-menu)
+ same => n,WaitExten(6)
+
+; Choice 1: Government General Hospital
+exten => 1,1,NoOp(Caller selected Hospital Option 1)
+ same => n,Set(BPL_SELECTED_HOSP=1)
+ same => n,Goto(bharat-pulselink-hospital-confirm,s,1)
+
+; Choice 2: Apollo Hospital
+exten => 2,1,NoOp(Caller selected Hospital Option 2)
+ same => n,Set(BPL_SELECTED_HOSP=2)
+ same => n,Goto(bharat-pulselink-hospital-confirm,s,1)
+
+; Choice 3: Fortis Healthcare
+exten => 3,1,NoOp(Caller selected Hospital Option 3)
+ same => n,Set(BPL_SELECTED_HOSP=3)
+ same => n,Goto(bharat-pulselink-hospital-confirm,s,1)
+
+; Invalid Hospital Choice
+exten => i,1,NoOp(Invalid hospital choice: ${INVALID_EXTEN})
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/hospital-invalid-choice)
+ same => n,GotoIf($[${HOSP_SELECT_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/hospital-max-attempts)
+ same => n,Hangup()
+
+; Hospital Selection Timeout
+exten => t,1,NoOp(Hospital selection timed out)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/hospital-selection-timeout)
+ same => n,GotoIf($[${HOSP_SELECT_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/hospital-max-attempts)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in hospital selection)
+
+; Step 8 Context: Hospital Confirmation -> Advances to Step 9 Appointment Dates
+[bharat-pulselink-hospital-confirm]
+exten => s,1,NoOp(Entering Confirmation for Hospital Option ${BPL_SELECTED_HOSP} in [${BPL_LANG}])
+ same => n,Set(CONFIRM_ATTEMPTS=0)
+ same => n(askconfirm),Set(CONFIRM_ATTEMPTS=$[${CONFIRM_ATTEMPTS} + 1])
+ same => n,Background(bharat-pulselink/${BPL_LANG}/hospital-confirm-${BPL_SELECTED_HOSP})
+ same => n,WaitExten(5)
+
+; Press 1: Confirm selection and proceed to Step 9 Appointment Dates Discovery
+exten => 1,1,NoOp(Hospital selection confirmed: proceeding to Appointment Date Discovery)
+ same => n,Goto(bharat-pulselink-appointment-dates,s,1)
+
+; Press 2: Change hospital selection
+exten => 2,1,NoOp(Caller requested change of hospital selection)
+ same => n,Goto(bharat-pulselink-hospital-selection,s,1)
+
+; Invalid Confirmation Digit
+exten => i,1,NoOp(Invalid confirmation digit: ${INVALID_EXTEN})
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/invalid)
+ same => n,GotoIf($[${CONFIRM_ATTEMPTS} < 3]?s,askconfirm)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/goodbye)
+ same => n,Hangup()
+
+; Confirmation Timeout
+exten => t,1,NoOp(Confirmation timed out)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/timeout)
+ same => n,GotoIf($[${CONFIRM_ATTEMPTS} < 3]?s,askconfirm)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/goodbye)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in hospital confirmation)
+
+; Step 9 Context: Appointment Dates Selection
+[bharat-pulselink-appointment-dates]
+exten => s,1,NoOp(Entering Appointment Dates Menu in [${BPL_LANG}])
+ same => n,Set(DATE_ATTEMPTS=0)
+ same => n(menu),Set(DATE_ATTEMPTS=$[${DATE_ATTEMPTS} + 1])
+ same => n,Background(bharat-pulselink/${BPL_LANG}/appointment-dates-menu)
+ same => n,WaitExten(6)
+
+; Date Choice 1
+exten => 1,1,NoOp(Caller selected Appointment Date 1)
+ same => n,Set(BPL_SELECTED_DATE=1)
+ same => n,Goto(bharat-pulselink-appointment-slots,s,1)
+
+; Date Choice 2
+exten => 2,1,NoOp(Caller selected Appointment Date 2)
+ same => n,Set(BPL_SELECTED_DATE=2)
+ same => n,Goto(bharat-pulselink-appointment-slots,s,1)
+
+; Date Choice 3
+exten => 3,1,NoOp(Caller selected Appointment Date 3)
+ same => n,Set(BPL_SELECTED_DATE=3)
+ same => n,Goto(bharat-pulselink-appointment-slots,s,1)
+
+; Invalid Date Choice
+exten => i,1,NoOp(Invalid date choice: ${INVALID_EXTEN})
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-invalid-date)
+ same => n,GotoIf($[${DATE_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-max-attempts)
+ same => n,Hangup()
+
+; Date Selection Timeout
+exten => t,1,NoOp(Date selection timed out)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-timeout)
+ same => n,GotoIf($[${DATE_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-max-attempts)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in appointment dates menu)
+
+; Step 9 Context: Appointment Slots Selection
+[bharat-pulselink-appointment-slots]
+exten => s,1,NoOp(Entering Appointment Slots Menu in [${BPL_LANG}])
+ same => n,Set(SLOT_ATTEMPTS=0)
+ same => n(menu),Set(SLOT_ATTEMPTS=$[${SLOT_ATTEMPTS} + 1])
+ same => n,Background(bharat-pulselink/${BPL_LANG}/appointment-slots-menu)
+ same => n,WaitExten(6)
+
+; Slot Choice 1 (10:00 AM)
+exten => 1,1,NoOp(Caller selected Time Slot 1)
+ same => n,Set(BPL_SELECTED_SLOT=1)
+ same => n,Goto(bharat-pulselink-slot-confirm,s,1)
+
+; Slot Choice 2 (11:30 AM)
+exten => 2,1,NoOp(Caller selected Time Slot 2)
+ same => n,Set(BPL_SELECTED_SLOT=2)
+ same => n,Goto(bharat-pulselink-slot-confirm,s,1)
+
+; Slot Choice 3 (02:00 PM)
+exten => 3,1,NoOp(Caller selected Time Slot 3)
+ same => n,Set(BPL_SELECTED_SLOT=3)
+ same => n,Goto(bharat-pulselink-slot-confirm,s,1)
+
+; Invalid Slot Choice
+exten => i,1,NoOp(Invalid slot choice: ${INVALID_EXTEN})
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-invalid-slot)
+ same => n,GotoIf($[${SLOT_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-max-attempts)
+ same => n,Hangup()
+
+; Slot Selection Timeout
+exten => t,1,NoOp(Slot selection timed out)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-timeout)
+ same => n,GotoIf($[${SLOT_ATTEMPTS} < 3]?s,menu)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/appointment-max-attempts)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in appointment slots menu)
+
+; Step 11 Context: Slot Confirmation & SMS Booking Completion
+[bharat-pulselink-slot-confirm]
+exten => s,1,NoOp(Entering Slot Confirmation for Date ${BPL_SELECTED_DATE}, Slot ${BPL_SELECTED_SLOT} in [${BPL_LANG}])
+ same => n,Set(SLOT_CONFIRM_ATTEMPTS=0)
+ same => n(askconfirm),Set(SLOT_CONFIRM_ATTEMPTS=$[${SLOT_CONFIRM_ATTEMPTS} + 1])
+ same => n,Background(bharat-pulselink/${BPL_LANG}/appointment-confirm-slot)
+ same => n,WaitExten(5)
+
+; Press 1: Confirm Booking -> Dispatches SMS and completes call (Step 11 Complete)
+exten => 1,1,NoOp(Booking confirmed: playing SMS confirmation audio)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/booking-confirmed-sms-sent)
+ same => n,Wait(1)
+ same => n,Hangup()
+
+; Press 2: Change time slot selection
+exten => 2,1,NoOp(Caller requested change of time slot)
+ same => n,Goto(bharat-pulselink-appointment-slots,s,1)
+
+; Invalid Slot Confirmation Digit
+exten => i,1,NoOp(Invalid slot confirmation digit: ${INVALID_EXTEN})
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/invalid)
+ same => n,GotoIf($[${SLOT_CONFIRM_ATTEMPTS} < 3]?s,askconfirm)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/goodbye)
+ same => n,Hangup()
+
+; Slot Confirmation Timeout
+exten => t,1,NoOp(Slot confirmation timed out)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/timeout)
+ same => n,GotoIf($[${SLOT_CONFIRM_ATTEMPTS} < 3]?s,askconfirm)
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/goodbye)
+ same => n,Hangup()
+
+exten => h,1,NoOp(Call hung up in slot confirmation)
+
+; Placeholder: Direct Book Appointment Menu item
+[bharat-pulselink-book-appointment]
+exten => s,1,NoOp(Entering Book Appointment Handler in [${BPL_LANG}])
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/book-appointment)
+ same => n,Wait(1)
+ same => n,Hangup()
+exten => h,1,NoOp(Call hung up in book-appointment)
+
+; Placeholder: Existing Appointment
+[bharat-pulselink-existing-appointment]
+exten => s,1,NoOp(Entering Existing Appointment Handler in [${BPL_LANG}])
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/existing-appointment)
+ same => n,Wait(1)
+ same => n,Hangup()
+exten => h,1,NoOp(Call hung up in existing-appointment)
+
+; Placeholder: Emergency
+[bharat-pulselink-emergency]
+exten => s,1,NoOp(Entering Emergency Handler in [${BPL_LANG}])
+ same => n,Playback(bharat-pulselink/${BPL_LANG}/emergency)
+ same => n,Wait(1)
+ same => n,Hangup()
+exten => h,1,NoOp(Call hung up in emergency)

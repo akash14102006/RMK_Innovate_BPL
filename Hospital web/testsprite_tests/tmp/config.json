@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://127.0.0.1:3000",
+  "executionArgs": {
+    "projectName": "",
+    "projectPath": "c:\\Users\\akash\\Downloads\\HealthPulse AI",
+    "testIds": [],
+    "additionalInstruction": "",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-S9Yp6aIfMnG66tQaaN_GbhtNwUsmzoJpqcACM4Z8sC5I1apqgwdpOPo6tWpJQ2KFddBV-4JhqmuOdAupOcOjWSEP2D2TOIy8ND3XTGJlrCY8WWAk1ERbvNHKtewhM1e-r5U"
+    }
+  },
+  "serverPort": 64152,
+  "proxy": "http://684417cd-caf0-48e8-bae5-b19e7ada254d:4W4dZQ0DbdjgMvSCODs4gLP7k6w0Lwf6@tun.testsprite.com:8080"
+}

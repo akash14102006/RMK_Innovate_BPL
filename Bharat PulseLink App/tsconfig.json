@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "Node16",
+    "jsx": "react",
+    "moduleResolution": "node16",
+    "allowJs": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "resolveJsonModule": true,
+    "types": [
+      "react",
+      "react-native",
+      "vitest"
+    ]
+  },
+  "exclude": [
+    "node_modules",
+    "backend",
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js",
+    "vitest.config.ts",
+    "vitest.config.mts",
+    "vitest.config.js"
+  ],
+  "extends": "expo/tsconfig.base"
+}

@@ -1,0 +1,83 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - React
+  - Vite
+  - Tailwind CSS
+  - Radix UI
+  - Lucide-react
+  - Sonner
+routes:
+  - path: /
+    file: src/components/LandingPage.tsx
+    auth_required: false
+    description: Initial landing page with app overview
+  - path: /login
+    file: src/components/LoginPage.tsx
+    auth_required: false
+    description: User authentication page
+  - path: /setup
+    file: src/components/ApiSetupRequired.tsx
+    auth_required: true
+    description: Mandatory API configuration step after first login
+  - path: /dashboard
+    file: src/components/DashboardLayout.tsx
+    auth_required: true
+    description: Main application dashboard container
+features:
+  - name: User Login
+    description: Authentication with email and password or Google
+    files:
+      - src/components/LoginPage.tsx
+      - src/context/AuthContext.tsx
+      - src/services/authService.ts
+    entry_route: /login
+    user_interactions:
+      - Fill email input
+      - Fill password input
+      - Click "Sign In" button
+      - Toggle between Sign In and Sign Up modes
+      - Click "Sign in with Google" button
+    api_calls:
+      - method: POST
+        endpoint: /api/auth/login
+    auth_required: false
+  - name: API Setup
+    description: Configure required third-party API keys
+    files:
+      - src/components/ApiSetupRequired.tsx
+      - src/components/SettingsPage.tsx
+      - src/services/apiSetupService.ts
+    entry_route: /setup
+    user_interactions:
+      - Click "Configure API Keys" button
+      - Fill Gemini API Key
+      - Fill Google Maps API Key
+      - Fill Weather API Key
+      - Click "Save All Configuration" button
+    auth_required: true
+  - name: Patient Triage
+    description: Intelligent patient triage system
+    files:
+      - src/components/PatientTriage.tsx
+      - src/services/triageService.ts
+    entry_route: /dashboard
+    user_interactions:
+      - Fill patient name, age, gender
+      - List symptoms
+      - Take/upload photo or record vitals
+      - Click "Run AI Triage Analysis"
+  - name: Pollution Monitor
+    description: Real-time air quality monitoring
+    files:
+      - src/components/PollutionMonitor.tsx
+      - src/services/pollutionService.ts
+    entry_route: /dashboard
+  - name: Epidemic Tracker
+    description: Monitor and predict disease outbreaks
+    files:
+      - src/components/EpidemicTracker.tsx
+      - src/services/diseaseAlertService.ts
+    entry_route: /dashboard
+known_limitations: []

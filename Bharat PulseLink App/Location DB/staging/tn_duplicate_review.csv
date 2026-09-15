@@ -1,0 +1,4 @@
+source,source_facility_id,hospital_name,state,district,pincode,latitude,longitude,classification,matched_hospital_id,matched_hospital_name,match_reason,notes
+"ABDM_HFR","IN-TN-KAR-0098","Government Medical College Hospital Karur","Tamil Nadu","Karur","639004",10.9601,78.0766,"REVIEW_REQUIRED","11107","Assissi Hospital","COORDINATE_CO_LOCATION","Co-located within 173m of Assissi Hospital"
+"ABDM_HFR","IN-TN-KRI-0107","Government Medical College Hospital Krishnagiri","Tamil Nadu","Krishnagiri","635001",12.5186,78.2137,"REVIEW_REQUIRED","951","Tcr Multispeciality Hospital","COORDINATE_CO_LOCATION","Co-located within 4m of Tcr Multispeciality Hospital"
+"TN_HMIS","TNHMIS-CHN-1014","GCC Urban Primary Health Centre, T. Nagar","Tamil Nadu","Chennai","600017",13.0415,80.2341,"REVIEW_REQUIRED","771","Praja Vydyasala","COORDINATE_CO_LOCATION","Co-located within 232m of Praja Vydyasala"

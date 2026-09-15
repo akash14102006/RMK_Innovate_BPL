@@ -1,0 +1,28 @@
+export const security = {
+  biometricTitle: 'Unlock faster. Stay protected.',
+  biometricSubtitle: 'Use your device biometrics to unlock Bharat PulseLink quickly and securely.',
+  benefitFast: 'Fast',
+  benefitPrivate: 'Private',
+  benefitDevice: 'Device-based',
+  enableBiometricAction: 'Enable Biometrics',
+  skipAction: 'Maybe Later',
+  notEnrolled: 'Biometrics supported, but no biometrics are enrolled in your device settings.',
+  unsupported: 'Biometric hardware is not available on this device.',
+  lockout: 'Too many failed attempts. Biometric unlock is temporarily locked out.',
+  pinTitle: 'Protect your app',
+  pinSubtitle: 'Create an optional Security PIN for local access to Bharat PulseLink.',
+  createPinTitle: 'Create Security PIN',
+  createPinSubtitle: 'Enter a 6-digit PIN to protect app access locally',
+  confirmPinTitle: 'Confirm Security PIN',
+  confirmPinSubtitle: 'Re-enter your 6-digit PIN to confirm',
+  weakPinNotice: 'Notice: This PIN is easily guessable. Consider a stronger PIN.',
+  mismatchError: 'PINs do not match. Please re-enter.',
+  appLockedTitle: 'App Locked',
+  appLockedSubtitle: 'Enter your Security PIN to continue',
+  incorrectPin: 'Incorrect Security PIN. Please try again.',
+  lockoutMessage: 'Too many failed attempts. Try again in {{seconds}}s.',
+  sharingSecurely: 'Sharing your information securely...',
+  keepOpen: 'Please keep the app open during transfer.',
+};
+
+export default security;

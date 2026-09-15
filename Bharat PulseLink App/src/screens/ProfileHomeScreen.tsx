@@ -38,9 +38,11 @@ import {
   ProfileSection,
   ProfileField,
 } from '../components/profile/card';
+import { useI18n } from '../i18n/I18nContext';
 
 export const ProfileHomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { descriptor, t } = useI18n();
   const systemColorScheme = useColorScheme();
   const isDark = systemColorScheme === 'dark';
 
@@ -308,6 +310,34 @@ export const ProfileHomeScreen: React.FC = () => {
                   value="Active & Enrolled"
                   isLast={true}
                   isDark={isDark}
+                />
+              </ProfileSection>
+
+              {/* 8. App Preferences & Language Section */}
+              <ProfileSection
+                title={t('settings.languageRegion') || 'App Preferences & Language'}
+                actionLabel="Change"
+                onActionPress={() => navigation.navigate('LanguageSettings')}
+                isDark={isDark}
+                icon={
+                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                    <Circle cx={12} cy={12} r={10} stroke={isDark ? '#38BDF8' : '#0F766E'} strokeWidth={2} />
+                    <Path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke={isDark ? '#38BDF8' : '#0F766E'} strokeWidth={2} />
+                  </Svg>
+                }
+              >
+                <ProfileField
+                  label={t('settings.currentLanguage') || 'App Language'}
+                  value={`${descriptor.nativeName} (${descriptor.englishName})`}
+                  isVerified={true}
+                  isDark={isDark}
+                />
+                <ProfileField
+                  label={t('settings.title') || 'Settings & Security'}
+                  value="Controls, Notifications & Sessions"
+                  isLast={true}
+                  isDark={isDark}
+                  onPress={() => navigation.navigate('Settings')}
                 />
               </ProfileSection>
             </>

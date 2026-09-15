@@ -21,15 +21,35 @@ const PatientSchema = new mongoose.Schema({
     },
     symptoms: String,
     history: [String],
+    allergies: [String],
+    medications: [String],
+    chronicConditions: [String],
+    lastVisit: String,
+    emergencyContact: {
+        name: String,
+        relationship: String,
+        phone: String
+    },
+    patientContext: mongoose.Schema.Types.Mixed,
     assessment: {
+        priority: String,
+        priorityScore: Number,
         riskLevel: String,
         riskScore: Number,
         confidence: Number,
         department: String,
-        explanation: String,
+        departmentReason: String,
+        clinicalSummary: String,
+        explanation: mongoose.Schema.Types.Mixed,
+        keyRiskFactors: [String],
         riskFactors: [String],
         riskMarkers: [String],
-        engine: String
+        recommendedNextStep: String,
+        modelUsed: String,
+        modelStatus: String,
+        modelPath: [String],
+        engine: String,
+        disclaimer: String
     },
     status: {
         type: String,
@@ -53,5 +73,3 @@ const PatientSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 module.exports = mongoose.model('Patient', PatientSchema);
-
-/* updated */

@@ -1,5 +1,11 @@
 {
   "client": {
     "source": "dist"
-  }
+  },
+  "slate": [
+    {
+      "name": "bpl-hospital-web",
+      "source": "Hospital web/frontend"
+    }
+  ]
 }

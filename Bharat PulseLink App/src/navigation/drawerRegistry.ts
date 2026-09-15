@@ -7,6 +7,8 @@ export type DrawerItemId =
   | 'appointments'
   | 'alerts'
   | 'profile'
+  | 'language'
+  | 'settings'
   | 'support'
   | 'logout';
 

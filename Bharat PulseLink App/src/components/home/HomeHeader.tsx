@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, spacing, radii } from '../../theme/tokens';
 
+import AccessibilityHeaderButton from '../accessibility/AccessibilityHeaderButton';
+import AccessibilityQuickPanel from '../accessibility/AccessibilityQuickPanel';
+
 export interface HomeHeaderProps {
   unreadCount?: number;
   onPressMenu: () => void;
@@ -16,50 +19,59 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
   onPressNotifications,
 }) => {
   return (
-    <View style={styles.container}>
-      {/* Left: Navigation Menu Button */}
-      <TouchableOpacity
-        style={styles.iconButton}
-        onPress={onPressMenu}
-        accessibilityRole="button"
-        accessibilityLabel="Open Navigation Drawer Menu"
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Path d="M4 7h16M4 12h16M4 17h16" stroke={colors.textPrimary} strokeWidth={2.2} strokeLinecap="round" />
-        </Svg>
-      </TouchableOpacity>
+    <>
+      <View style={styles.container}>
+        {/* Left: Navigation Menu Button */}
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={onPressMenu}
+          accessibilityRole="button"
+          accessibilityLabel="Open Navigation Drawer Menu"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+            <Path d="M4 7h16M4 12h16M4 17h16" stroke={colors.textPrimary} strokeWidth={2.2} strokeLinecap="round" />
+          </Svg>
+        </TouchableOpacity>
 
-      {/* Center: Brand Identity */}
-      <View style={styles.brandContainer}>
-        <Text style={styles.brandTitle}>Bharat PulseLink</Text>
-        <Text style={styles.brandSubtitle}>Your health, connected.</Text>
+        {/* Center: Brand Identity */}
+        <View style={styles.brandContainer}>
+          <Text style={styles.brandTitle}>Bharat PulseLink</Text>
+          <Text style={styles.brandSubtitle}>Your health, connected.</Text>
+        </View>
+
+        {/* Right Actions: Accessibility button immediately preceding Notifications */}
+        <View style={styles.rightActionsRow}>
+          <AccessibilityHeaderButton size={20} />
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={onPressNotifications}
+            accessibilityRole="button"
+            accessibilityLabel={`Notifications, ${unreadCount} unread`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"
+                stroke={colors.textPrimary}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Right: Notifications */}
-      <TouchableOpacity
-        style={styles.iconButton}
-        onPress={onPressNotifications}
-        accessibilityRole="button"
-        accessibilityLabel={`Notifications, ${unreadCount} unread`}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"
-            stroke={colors.textPrimary}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Svg>
-        {unreadCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    </View>
+      {/* Embedded Neumorphic Quick Panel */}
+      <AccessibilityQuickPanel />
+    </>
   );
 };
 
@@ -71,6 +83,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: 2,
     marginBottom: spacing.xs,
+  },
+  rightActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   iconButton: {
     width: 40,

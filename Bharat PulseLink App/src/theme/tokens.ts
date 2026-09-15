@@ -83,4 +83,61 @@ export const shadows = {
   },
 };
 
-export default { colors, spacing, radii, typography, shadows };
+export function getScaledTypography(fontScale: number = 1.0, bold: boolean = false) {
+  const scale = Math.max(1.0, Math.min(2.0, fontScale));
+  return {
+    titleLarge: {
+      fontSize: Math.round(24 * scale),
+      fontWeight: (bold ? '800' : '700') as any,
+      lineHeight: Math.round(32 * scale),
+    },
+    titleMedium: {
+      fontSize: Math.round(20 * scale),
+      fontWeight: (bold ? '700' : '600') as any,
+      lineHeight: Math.round(28 * scale),
+    },
+    titleSmall: {
+      fontSize: Math.round(16 * scale),
+      fontWeight: (bold ? '700' : '600') as any,
+      lineHeight: Math.round(24 * scale),
+    },
+    bodyLarge: {
+      fontSize: Math.round(16 * scale),
+      fontWeight: (bold ? '600' : '400') as any,
+      lineHeight: Math.round(24 * scale),
+    },
+    bodyMedium: {
+      fontSize: Math.round(14 * scale),
+      fontWeight: (bold ? '600' : '400') as any,
+      lineHeight: Math.round(20 * scale),
+    },
+    bodySmall: {
+      fontSize: Math.round(12 * scale),
+      fontWeight: (bold ? '600' : '400') as any,
+      lineHeight: Math.round(16 * scale),
+    },
+    caption: {
+      fontSize: Math.round(11 * scale),
+      fontWeight: (bold ? '700' : '500') as any,
+      lineHeight: Math.round(14 * scale),
+    },
+  };
+}
+
+export function getAccessibleColors(highContrast: boolean = false) {
+  if (!highContrast) return colors;
+  return {
+    ...colors,
+    textPrimary: '#000000',
+    textSecondary: '#1E293B',
+    textMuted: '#475569',
+    border: '#94A3B8',
+    divider: '#CBD5E1',
+    background: '#FFFFFF',
+    surface: '#FFFFFF',
+    primary: '#093B52',
+  };
+}
+
+export default { colors, spacing, radii, typography, shadows, getScaledTypography, getAccessibleColors };
+

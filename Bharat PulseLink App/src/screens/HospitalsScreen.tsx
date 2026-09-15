@@ -20,11 +20,12 @@ import {
   FlatList,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, spacing, radii, typography } from '../theme/tokens';
 import { useHospitalDiscovery } from '../hooks/useHospitalDiscovery';
+import { useI18n } from '../i18n/I18nContext';
 import { HospitalSummaryItem } from '../types/hospitals';
 import HospitalSearchBar from '../components/hospitals/HospitalSearchBar';
 import HospitalFilterChips from '../components/hospitals/HospitalFilterChips';
@@ -36,10 +37,12 @@ import HospitalEmptyState from '../components/hospitals/HospitalEmptyState';
 import LocationPickerModal from '../components/hospitals/LocationPickerModal';
 import LocationService from '../services/LocationService';
 import HospitalDetailsModal from '../components/hospitals/HospitalDetailsModal';
-import BottomTabBar, { TabId } from '../components/home/BottomTabBar';
+import BottomTabBar, { TabId, getBottomNavHeight } from '../components/home/BottomTabBar';
 
 export const HospitalsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { t } = useI18n();
+  const insets = useSafeAreaInsets();
 
   const {
     searchQuery,
@@ -125,7 +128,7 @@ export const HospitalsScreen: React.FC = () => {
             style={styles.backBtn}
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
-            accessibilityLabel="Go Back"
+            accessibilityLabel={t('common.back')}
           >
             <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
               <Path
@@ -138,14 +141,14 @@ export const HospitalsScreen: React.FC = () => {
             </Svg>
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Hospitals</Text>
+          <Text style={styles.headerTitle}>{t('hospitals.headerTitle')}</Text>
 
           {/* Switch to Map View Header Button */}
           <TouchableOpacity
             style={styles.mapToggleHeaderBtn}
             onPress={() => navigation.navigate('HospitalMap')}
             accessibilityRole="button"
-            accessibilityLabel="Switch to Hospital Map View"
+            accessibilityLabel={t('hospitals.mapTitle')}
           >
             <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
               <Path
@@ -156,7 +159,7 @@ export const HospitalsScreen: React.FC = () => {
                 strokeLinejoin="round"
               />
             </Svg>
-            <Text style={styles.mapToggleHeaderText}>Map</Text>
+            <Text style={styles.mapToggleHeaderText}>{t('hospitals.mapToggle')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -239,7 +242,7 @@ export const HospitalsScreen: React.FC = () => {
         {/* Floating Map View Pill CTA */}
         {hospitals.length > 0 && (
           <TouchableOpacity
-            style={styles.floatingMapBtn}
+            style={[styles.floatingMapBtn, { bottom: getBottomNavHeight(insets.bottom) + 12 }]}
             onPress={() => navigation.navigate('HospitalMap')}
             activeOpacity={0.88}
             accessibilityRole="button"

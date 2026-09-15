@@ -58,7 +58,8 @@ export type QRErrorState =
   | 'AUTH_REQUIRED'
   | 'SESSION_EXPIRED'
   | 'SERVER_ERROR'
-  | 'CAPABILITY_POOL_EMPTY';
+  | 'CAPABILITY_POOL_EMPTY'
+  | 'OFFLINE_KEY_UNAVAILABLE';
 
 export const MySecureQRScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -97,23 +98,26 @@ export const MySecureQRScreen: React.FC = () => {
   /**
    * Loads or refreshes the active QR session (Unified Online / Offline Capability).
    */
-  const loadActiveQRSession = async () => {
+  const loadActiveQRSession = async (overrideScopes?: SharingScopeKey[]) => {
     setIsLoading(true);
     setErrorState(null);
     if (timerRef.current) clearInterval(timerRef.current);
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
+    const scopesToUse = overrideScopes || selectedScopes;
+
     try {
       const result = await QRSessionClientService.getActiveSessionUnified({
         purpose: requestedPurpose,
         recipientId: boundHospitalId,
-        ttlSeconds: 90,
+        ttlSeconds: 300,
+        scopes: scopesToUse,
       });
 
       setSessionData(result.data);
       setIsOfflineMode(result.isOffline);
       setErrorState(null);
-      const ttl = result.data.ttlSeconds || 90;
+      const ttl = result.data.ttlSeconds || (result.isOffline ? 300 : 90);
       setTotalSeconds(ttl);
       setSecondsLeft(ttl);
       setSessionStatus('ACTIVE');
@@ -128,7 +132,9 @@ export const MySecureQRScreen: React.FC = () => {
       setIsLoading(false);
       const online = isDeviceOnline();
       const code: QRErrorState =
-        err.code === 'AUTH_REQUIRED'
+        err.code === 'OFFLINE_KEY_UNAVAILABLE'
+          ? 'OFFLINE_KEY_UNAVAILABLE'
+          : err.code === 'AUTH_REQUIRED'
           ? 'AUTH_REQUIRED'
           : err.code === 'SESSION_EXPIRED'
           ? 'SESSION_EXPIRED'
@@ -141,7 +147,7 @@ export const MySecureQRScreen: React.FC = () => {
           : 'BACKEND_UNREACHABLE';
 
       setErrorState(code);
-      setIsOfflineMode(code === 'NO_INTERNET_NO_POOL');
+      setIsOfflineMode(code === 'NO_INTERNET_NO_POOL' || code === 'OFFLINE_KEY_UNAVAILABLE');
       setSessionStatus('EXPIRED');
     }
   };
@@ -202,10 +208,14 @@ export const MySecureQRScreen: React.FC = () => {
   }, [sessionData, sessionStatus]);
 
   const handleToggleScope = (scopeKey: SharingScopeKey) => {
-    if (selectedScopes.includes(scopeKey)) {
-      setSelectedScopes(selectedScopes.filter((s) => s !== scopeKey));
-    } else {
-      setSelectedScopes([...selectedScopes, scopeKey]);
+    const nextScopes = selectedScopes.includes(scopeKey)
+      ? selectedScopes.filter((s) => s !== scopeKey)
+      : [...selectedScopes, scopeKey];
+    setSelectedScopes(nextScopes);
+
+    // If currently displaying an offline QR, regenerate envelope with the updated scopes immediately
+    if (isOfflineMode) {
+      loadActiveQRSession(nextScopes);
     }
   };
 
@@ -271,7 +281,19 @@ export const MySecureQRScreen: React.FC = () => {
         >
           {/* ── 2. REAL-TIME CONNECTION / CAPABILITY STATUS BADGE ──────────────── */}
           <View style={styles.statusBarRow}>
-            {errorState === 'AUTH_REQUIRED' || errorState === 'SESSION_EXPIRED' ? (
+            {errorState === 'OFFLINE_KEY_UNAVAILABLE' ? (
+              <View style={[styles.statusPill, styles.statusPillWarn]}>
+                <LockIcon size={14} color="#D97706" />
+                <View style={styles.statusTextCol}>
+                  <Text style={[styles.statusPillText, { color: '#D97706' }]}>
+                    OFFLINE KEY UNAVAILABLE
+                  </Text>
+                  <Text style={[styles.statusPillSub, { color: '#B45309' }]}>
+                    Trusted facility encryption key missing
+                  </Text>
+                </View>
+              </View>
+            ) : errorState === 'AUTH_REQUIRED' || errorState === 'SESSION_EXPIRED' ? (
               <View style={[styles.statusPill, styles.statusPillAlert]}>
                 <LockIcon size={14} color="#DC2626" />
                 <View style={styles.statusTextCol}>
@@ -324,9 +346,9 @@ export const MySecureQRScreen: React.FC = () => {
                 <WifiOffIcon size={14} color="#0284C7" />
                 <View style={styles.statusTextCol}>
                   <Text style={[styles.statusPillText, { color: '#0369A1' }]}>
-                    OFFLINE READY
+                    OFFLINE SECURE QR
                   </Text>
-                  <Text style={styles.statusPillSub}>Pre-issued cryptographic capability active</Text>
+                  <Text style={styles.statusPillSub}>Asymmetric Encrypted Envelope • No Internet Required</Text>
                 </View>
               </View>
             ) : (
@@ -398,6 +420,17 @@ export const MySecureQRScreen: React.FC = () => {
                   </Text>
                   <TouchableOpacity style={styles.primaryActionBtn} onPress={loadActiveQRSession}>
                     <Text style={styles.primaryActionBtnText}>Retry Connection</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : errorState === 'OFFLINE_KEY_UNAVAILABLE' ? (
+                <View style={styles.qrCenterState}>
+                  <LockIcon size={44} color="#D97706" />
+                  <Text style={[styles.qrStateTitle, { color: '#D97706' }]}>Offline Key Unavailable</Text>
+                  <Text style={styles.qrStateSub}>
+                    Offline secure sharing is unavailable for this facility because its trusted encryption key is not available on this device.
+                  </Text>
+                  <TouchableOpacity style={styles.primaryActionBtn} onPress={() => loadActiveQRSession()}>
+                    <Text style={styles.primaryActionBtnText}>Retry Key Resolution</Text>
                   </TouchableOpacity>
                 </View>
               ) : errorState === 'NO_INTERNET_NO_POOL' ? (
@@ -556,7 +589,7 @@ export const MySecureQRScreen: React.FC = () => {
                 <Text style={styles.modalMetaValue}>{sessionData?.tokenHash?.slice(0, 24) || 'N/A'}...</Text>
 
                 <Text style={[styles.modalMetaLabel, { marginTop: 8 }]}>MODE</Text>
-                <Text style={styles.modalMetaValue}>{isOfflineMode ? 'OFFLINE PRE-ISSUED' : 'ONLINE LIVE'}</Text>
+                <Text style={styles.modalMetaValue}>{isOfflineMode ? 'OFFLINE SECURE ASYMMETRIC ENVELOPE' : 'ONLINE LIVE'}</Text>
               </View>
               <TouchableOpacity
                 style={styles.modalCloseBtn}

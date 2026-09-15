@@ -23,6 +23,8 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { colors, spacing, radii } from '../theme/tokens';
 import AccountManagementService from '../services/AccountManagementService';
 import SessionManager from '../services/sessionManager';
+import { useI18n } from '../i18n/I18nContext';
+import { useAccessibility } from '../accessibility/AccessibilityContext';
 
 interface SettingTileProps {
   iconBg: string;
@@ -72,6 +74,8 @@ const SettingTile: React.FC<SettingTileProps> = ({
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { descriptor, t } = useI18n();
+  const { activeProfile } = useAccessibility();
 
   const [activeConsentsCount, setActiveConsentsCount] = useState<number>(1);
   const [activeInsuranceText, setActiveInsuranceText] = useState<string>('₹10L Active');
@@ -128,8 +132,8 @@ export const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Settings & Controls</Text>
-            <Text style={styles.headerSub}>Account & Security Center</Text>
+            <Text style={styles.headerTitle}>{t('settings.headerTitle') || 'Settings & Controls'}</Text>
+            <Text style={styles.headerSub}>{t('settings.headerSub') || 'Account & Security Center'}</Text>
           </View>
 
           <View style={{ width: 40 }} />
@@ -299,9 +303,26 @@ export const SettingsScreen: React.FC = () => {
                   <Path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="#4F46E5" strokeWidth={2} />
                 </Svg>
               }
-              title="Language & Region"
-              subtitle="English (India) • 10 Indian Languages"
+              title={t('settings.languageRegion') || 'Language & Region'}
+              subtitle={`${descriptor.nativeName} (${descriptor.englishName}) • 23 Official Locales`}
+              statusBadge={descriptor.nativeName}
               onPress={() => navigation.navigate('LanguageSettings')}
+            />
+
+            <SettingTile
+              iconBg="#F0FDFA"
+              icon={
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                  <Circle cx={12} cy={12} r={10} stroke="#0F766E" strokeWidth={2} />
+                  <Circle cx={12} cy={7.5} r={1.75} fill="#0F766E" />
+                  <Path d="M5.5 10.5C8 9.8 16 9.8 18.5 10.5" stroke="#0F766E" strokeWidth={1.8} strokeLinecap="round" />
+                  <Path d="M12 9.5V14.5M9.5 18.5L12 14.5L14.5 18.5" stroke="#0F766E" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              }
+              title={t('settings.accessibilityCenter') || 'Accessibility & Assistive Care'}
+              subtitle="Adaptive Care Access, text scaling, speech & high contrast"
+              statusBadge={activeProfile}
+              onPress={() => navigation.navigate('AccessibilityCenter')}
             />
           </View>
 

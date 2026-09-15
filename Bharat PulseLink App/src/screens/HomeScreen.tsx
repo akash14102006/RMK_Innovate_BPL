@@ -14,6 +14,7 @@ import MotionContainer from '../components/MotionContainer';
 import SessionManager from '../services/sessionManager';
 import QRSessionClientService from '../services/QRSessionClientService';
 import { useHomeDashboard } from '../hooks/useHomeDashboard';
+import { useI18n } from '../i18n/I18nContext';
 import { TabId } from '../components/home/BottomTabBar';
 
 // Components
@@ -31,6 +32,7 @@ import NotificationsModal from '../components/home/NotificationsModal';
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { t } = useI18n();
   const { data: dashboard, isLoading, isRefetching, refetch } = useHomeDashboard();
 
   const [activeTab, setActiveTab] = useState<TabId>('Home');
@@ -74,7 +76,7 @@ export const HomeScreen: React.FC = () => {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0F766E" />
-          <Text style={styles.loadingText}>Connecting Health Network...</Text>
+          <Text style={styles.loadingText}>{t('home.connectingNetwork')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -110,6 +112,12 @@ export const HomeScreen: React.FC = () => {
         break;
       case 'profile':
         navigation.navigate('ProfileHome');
+        break;
+      case 'language':
+        navigation.navigate('LanguageSettings');
+        break;
+      case 'settings':
+        navigation.navigate('Settings');
         break;
       case 'support':
         navigation.navigate('HelpSupport');

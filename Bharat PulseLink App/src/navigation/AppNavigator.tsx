@@ -60,6 +60,7 @@ import ConsentDataSharingScreen from '../screens/ConsentDataSharingScreen';
 import AccessHistoryScreen from '../screens/AccessHistoryScreen';
 import NotificationCenterScreen from '../screens/NotificationCenterScreen';
 import LanguageSettingsScreen from '../screens/LanguageSettingsScreen';
+import AccessibilityCenterScreen from '../screens/AccessibilityCenterScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
@@ -124,6 +125,7 @@ export const AppNavigator: React.FC = () => {
       <Stack.Screen name="AccessHistory" component={AccessHistoryScreen} />
       <Stack.Screen name="NotificationCenter" component={NotificationCenterScreen} />
       <Stack.Screen name="LanguageSettings" component={LanguageSettingsScreen} />
+      <Stack.Screen name="AccessibilityCenter" component={AccessibilityCenterScreen} />
       <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     </Stack.Navigator>
   );

@@ -1,0 +1,29 @@
+{
+  "defaults": {
+    "project": 1
+  },
+  "actives": {
+    "project": 1,
+    "env": 1
+  },
+  "projects": [
+    {
+      "idx": 1,
+      "id": "45026000000086001",
+      "name": "BPL",
+      "domain": {
+        "id": "50045915984",
+        "name": "bpl-60074066437.development"
+      },
+      "timezone": "Asia/Kolkata",
+      "env": [
+        {
+          "idx": 1,
+          "id": "60074066437",
+          "name": "Development",
+          "type": 3
+        }
+      ]
+    }
+  ]
+}

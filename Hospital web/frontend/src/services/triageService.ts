@@ -1,6 +1,51 @@
 import { getCurrentUser } from './authService';
 import { userApiKeyService } from './userApiKeyService';
 
+export interface ExplainableFactor {
+    factor: string;
+    finding: string;
+    impact: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface PatientContextData {
+    allergies: string[];
+    medications: string[];
+    chronicConditions: string[];
+    lastVisit: string;
+    emergencyContact: {
+        name: string;
+        relationship: string;
+        phone?: string;
+    } | null;
+}
+
+export interface TriageAssessmentResult {
+    priority: 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW';
+    priorityScore: number;
+    riskLevel?: string;
+    riskScore?: number;
+    department: string;
+    departmentReason: string;
+    recommendedDepartment?: string;
+    routingReason?: string;
+    clinicalSummary: string;
+    keyRiskFactors: string[];
+    riskFactors?: string[];
+    riskMarkers?: string[];
+    explanation: ExplainableFactor[] | string;
+    recommendedNextStep?: string;
+    confidence: number;
+    modelUsed: 'XGBoost' | 'Gemini' | 'Clinical Rules';
+    engine?: string;
+    modelStatus?: 'PRIMARY MODEL' | 'FALLBACK ACTIVE' | 'LOCAL FALLBACK';
+    modelPath?: string[];
+    disclaimer?: string;
+    isSimulated?: boolean;
+    dbId?: string;
+    pdfUrl?: string;
+    storedRecord?: any;
+}
+
 export interface PatientRecord {
     _id: string;
     patientId: string;
@@ -17,15 +62,17 @@ export interface PatientRecord {
     };
     symptoms: string;
     history: string[];
-    assessment: {
-        riskLevel: string;
-        riskScore: number;
-        confidence: number;
-        department: string;
-        explanation: string;
-        riskFactors: string[];
-        engine: string;
-    };
+    allergies?: string[];
+    medications?: string[];
+    chronicConditions?: string[];
+    lastVisit?: string;
+    emergencyContact?: {
+        name: string;
+        relationship: string;
+        phone?: string;
+    } | null;
+    patientContext?: PatientContextData;
+    assessment: TriageAssessmentResult;
     status: 'Waiting' | 'Admitted' | 'Completed';
     assignedDepartment?: string;
     routingReason?: string;
@@ -47,9 +94,9 @@ const getOwnerEmail = () => {
     return getCurrentUser()?.email || '';
 };
 
-// --- SIMULATION LOGIC FOR NETLIFY/OFFLINE DEMO ---
+// --- SIMULATION LOGIC FOR OFFLINE / ISOLATED DEMO ---
 
-const SIMULATED_DELAY = 1500;
+const SIMULATED_DELAY = 1200;
 const STORAGE_KEY = 'BHARAT_PULSELINK_SIMULATED_DATA';
 
 const getSimulatedData = (): PatientRecord[] => {
@@ -64,88 +111,137 @@ const saveSimulatedData = (data: PatientRecord[]) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
 
-const simulateAssessment = (patientData: any) => {
+const simulateAssessment = (patientData: any, patientContext: Partial<PatientContextData> = {}): TriageAssessmentResult => {
     const symptoms = String(patientData.symptoms || '').toLowerCase();
     const history = Array.isArray(patientData.history) ? patientData.history.map((h: string) => String(h).toLowerCase()) : [];
     const age = parseInt(patientData.age) || 30;
 
     let riskScore = 0;
     let riskFactors: string[] = [];
+    let explanation: ExplainableFactor[] = [];
     let department = 'General Medicine';
 
-    // 1. Vital Signs Scoring (High Weight)
-    const temp = parseFloat(patientData.temperature) || 98.6;
-    if (temp >= 104) { riskScore += 35; riskFactors.push('Critical Hyperpyrexia'); }
-    else if (temp >= 102) { riskScore += 20; riskFactors.push('High Fever'); }
-    else if (temp >= 100.4) { riskScore += 10; riskFactors.push('Mild Pyrexia'); }
-
+    // 1. Oxygen Saturation
     const spo2 = parseFloat(patientData.oxygenLevel) || 98;
-    if (spo2 < 88) { riskScore += 55; riskFactors.push('Critical Hypoxia (<88%)'); department = 'Emergency / ICU'; }
-    else if (spo2 < 93) { riskScore += 30; riskFactors.push('Hypoxemia Symptoms'); department = 'Pulmonology'; }
+    if (spo2 < 88) {
+        riskScore += 55;
+        riskFactors.push('Critical Hypoxia (<88%)');
+        explanation.push({ factor: 'Oxygen Saturation', finding: `SpO₂ ${spo2}%`, impact: 'HIGH' });
+        department = 'Emergency Medicine';
+    } else if (spo2 < 93) {
+        riskScore += 30;
+        riskFactors.push('Hypoxemia Symptoms');
+        explanation.push({ factor: 'Oxygen Saturation', finding: `SpO₂ ${spo2}%`, impact: 'MEDIUM' });
+        department = 'Pulmonology';
+    } else {
+        explanation.push({ factor: 'Oxygen Saturation', finding: `SpO₂ ${spo2}% (Normal)`, impact: 'LOW' });
+    }
 
-    const hr = parseInt(patientData.heartRate) || 72;
-    if (hr > 130 || hr < 40) { riskScore += 35; riskFactors.push('Maladaptive Heart Rate'); department = 'Cardiology'; }
-    else if (hr > 105) { riskScore += 15; riskFactors.push('Tachycardia'); }
-
+    // 2. Blood Pressure
     const bp = String(patientData.bloodPressure || '');
     const systolic = bp.includes('/') ? parseInt(bp.split('/')[0]) : parseInt(bp) || 120;
     const diastolic = bp.includes('/') ? parseInt(bp.split('/')[1]) : 80;
 
-    if (systolic >= 185 || diastolic >= 115) { riskScore += 65; riskFactors.push('Hypertensive Crisis'); department = 'Emergency Medicine'; }
-    else if (systolic >= 160) { riskScore += 35; riskFactors.push('Severe Hypertension'); department = 'Cardiology'; }
-    else if (systolic >= 140) { riskScore += 15; riskFactors.push('Hypertension Stage 1'); }
+    if (systolic >= 185 || diastolic >= 115) {
+        riskScore += 65;
+        riskFactors.push('Hypertensive Crisis');
+        explanation.push({ factor: 'Blood Pressure', finding: `${systolic}/${diastolic} mmHg`, impact: 'HIGH' });
+        department = 'Emergency Medicine';
+    } else if (systolic >= 160 || diastolic >= 105) {
+        riskScore += 35;
+        riskFactors.push('Severe Hypertension');
+        explanation.push({ factor: 'Blood Pressure', finding: `${systolic}/${diastolic} mmHg`, impact: 'MEDIUM' });
+        if (department === 'General Medicine') department = 'Cardiology';
+    } else {
+        explanation.push({ factor: 'Blood Pressure', finding: `${systolic}/${diastolic} mmHg`, impact: 'LOW' });
+    }
 
-    // 2. Comprehensive Symptom Logic (Dynamic weights)
-    const symptomWeights: Record<string, { weight: number, dept: string, factor: string }> = {
-        'chest pain': { weight: 50, dept: 'Cardiology', factor: 'Potential Acute Coronary' },
-        'heart': { weight: 20, dept: 'Cardiology', factor: 'Cardiac Involvement' },
-        'breath': { weight: 45, dept: 'Pulmonology', factor: 'Respiratory Distress' },
-        'stroke': { weight: 60, dept: 'Neurology', factor: 'Acute Neuro Event' },
-        'paralysis': { weight: 60, dept: 'Neurology', factor: 'Focal Deficit' },
-        'slurred': { weight: 50, dept: 'Neurology', factor: 'Speech Impairment' },
-        'bleed': { weight: 40, dept: 'Trauma / ER', factor: 'Hemorrhage Risk' },
-        'abdominal': { weight: 25, dept: 'Gastroenterology', factor: 'Abdominal Distress' },
-        'stomach': { weight: 15, dept: 'Gastroenterology', factor: 'Gastric Issue' },
-        'fracture': { weight: 35, dept: 'Orthopedics', factor: 'Structural Injury' },
-        'bone': { weight: 20, dept: 'Orthopedics', factor: 'Orthopedic Trauma' },
-        'skin': { weight: 10, dept: 'Dermatology', factor: 'Dermatological Issue' },
-        'rash': { weight: 12, dept: 'Dermatology', factor: 'Skin Lesion/Rash' },
-        'ear': { weight: 10, dept: 'ENT', factor: 'Auditory Symptom' },
-        'throat': { weight: 10, dept: 'ENT', factor: 'Throat Discomfort' },
-        'vision': { weight: 30, dept: 'Ophthalmology', factor: 'Visual Deficit' },
-        'kidney': { weight: 25, dept: 'Nephrology', factor: 'Renal Marker' },
-        'urine': { weight: 15, dept: 'Urology', factor: 'Urinary Marker' },
-        'cancer': { weight: 40, dept: 'Oncology', factor: 'Oncology Concern' },
-        'tumor': { weight: 40, dept: 'Oncology', factor: 'Potential Malignancy' },
-        'anxiety': { weight: 15, dept: 'Psychiatry', factor: 'Mental Health Context' }
+    // 3. Temperature
+    const temp = parseFloat(patientData.temperature) || 98.6;
+    if (temp >= 104) {
+        riskScore += 35;
+        riskFactors.push('Critical Hyperpyrexia');
+        explanation.push({ factor: 'Temperature', finding: `${temp}°F (Severe Fever)`, impact: 'HIGH' });
+    } else if (temp >= 100.4) {
+        riskScore += 15;
+        riskFactors.push('Mild Pyrexia');
+        explanation.push({ factor: 'Temperature', finding: `${temp}°F`, impact: 'LOW' });
+    }
+
+    // 4. Heart Rate
+    const hr = parseInt(patientData.heartRate) || 72;
+    if (hr > 130 || hr < 40) {
+        riskScore += 35;
+        riskFactors.push('Critical Pulse Abnormality');
+        explanation.push({ factor: 'Heart Rate', finding: `${hr} bpm`, impact: 'HIGH' });
+        if (department === 'General Medicine') department = 'Cardiology';
+    } else if (hr > 105) {
+        riskScore += 15;
+        riskFactors.push('Tachycardia');
+        explanation.push({ factor: 'Heart Rate', finding: `${hr} bpm`, impact: 'MEDIUM' });
+    }
+
+    // 5. Symptom Analysis
+    const symptomWeights: Record<string, { weight: number, dept: string, factor: string, title: string }> = {
+        'chest pain': { weight: 50, dept: 'Cardiology', factor: 'Potential Acute Coronary Syndrome', title: 'Chest Symptoms' },
+        'heart': { weight: 20, dept: 'Cardiology', factor: 'Cardiac Involvement', title: 'Cardiac History' },
+        'breath': { weight: 45, dept: 'Pulmonology', factor: 'Respiratory Distress', title: 'Respiratory Signs' },
+        'stroke': { weight: 60, dept: 'Neurology', factor: 'Acute Neuro Event', title: 'Neurological Deficit' },
+        'bleed': { weight: 40, dept: 'Trauma / ER', factor: 'Hemorrhage Risk', title: 'Active Bleeding' },
+        'abdominal': { weight: 25, dept: 'Gastroenterology', factor: 'Abdominal Distress', title: 'Abdominal Symptoms' },
+        'fracture': { weight: 35, dept: 'Orthopedics', factor: 'Structural Injury', title: 'Orthopedic Trauma' },
+        'cancer': { weight: 40, dept: 'Oncology', factor: 'Oncology Concern', title: 'Malignancy Context' },
     };
 
     Object.entries(symptomWeights).forEach(([key, val]) => {
         if (symptoms.includes(key)) {
             riskScore += val.weight;
             if (val.weight > 20) riskFactors.push(val.factor);
+            explanation.push({ factor: val.title, finding: `Matched keyword "${key}"`, impact: val.weight >= 40 ? 'HIGH' : 'MEDIUM' });
             if (department === 'General Medicine' || val.weight >= 40) department = val.dept;
         }
     });
 
-    // 3. History Context
+    // 6. Medical Context
     if (history.includes('cancer')) { riskScore += 30; riskFactors.push('H/O Cancer'); if (department === 'General Medicine') department = 'Oncology'; }
     if (history.includes('heart disease')) { riskScore += 20; riskFactors.push('H/O Cardiac Disease'); if (department === 'General Medicine') department = 'Cardiology'; }
-    if (history.includes('diabetes')) riskScore += 15;
-    if (age >= 80) riskScore += 20;
+    if (history.includes('diabetes')) {
+        riskScore += 15;
+        explanation.push({ factor: 'Medical Context', finding: 'Documented diabetes history adds vulnerability', impact: 'MEDIUM' });
+    }
 
-    // Safety: Cap Risk levels and adjust confidence
-    const riskLevel = riskScore >= 75 ? 'Critical' : (riskScore >= 55 ? 'High' : (riskScore >= 25 ? 'Medium' : 'Low'));
-    const dynamicConfidence = 0.95 + (Math.random() * 0.04); // Simulated AI variance
+    const priorityScore = Math.min(100, Math.max(18, Math.floor(riskScore)));
+    const priority: 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW' =
+        priorityScore >= 75 ? 'CRITICAL' : (priorityScore >= 50 ? 'HIGH' : (priorityScore >= 30 ? 'MODERATE' : 'LOW'));
+    const riskLevel = priority === 'CRITICAL' || priority === 'HIGH' ? 'High' : (priority === 'LOW' ? 'Low' : 'Medium');
+
+    const topFindings = explanation.slice(0, 3).map(e => `${e.factor}: ${e.finding}`).join('. ');
+    const clinicalSummary = `Multiple physiological signals indicate ${priority} acuity. ${topFindings}.`;
 
     return {
-        riskLevel: riskLevel === 'Critical' ? 'High' : riskLevel,
-        riskScore: Math.min(100, Math.floor(riskScore)),
-        confidence: parseFloat(dynamicConfidence.toFixed(2)),
-        department: riskScore >= 70 && !department.includes('Emergency') ? `${department} / ER` : department,
-        explanation: `Autonomous Diagnostic (v.2.1-PRO): Analysis based on ${riskFactors.length} clinical indicators. Evidence: ${riskFactors.length > 0 ? riskFactors.slice(0, 4).join(', ') : 'Vitals baseline stable'}.`,
-        riskFactors: riskFactors.slice(0, 6).map(f => `[AUTO] ${f}`),
-        engine: 'Bharat PulseLink Autonomous Engine 2.1'
+        priority,
+        priorityScore,
+        riskLevel,
+        riskScore: priorityScore,
+        confidence: 94,
+        department,
+        departmentReason: `Assigned to ${department} based on presenting symptoms and physiological abnormalities.`,
+        recommendedDepartment: department,
+        routingReason: `Assigned to ${department} based on presenting symptoms and physiological abnormalities.`,
+        clinicalSummary,
+        keyRiskFactors: riskFactors.length > 0 ? riskFactors.slice(0, 5) : ['Baseline vitals stable within clinical parameters'],
+        explanation: explanation.slice(0, 5),
+        recommendedNextStep: priorityScore >= 75 ? 'Immediate resuscitation bay admission and physician review.' : 'Bedside clinical triage observation.',
+        modelUsed: 'Clinical Rules',
+        engine: 'Clinical Decision Support Rules',
+        modelStatus: 'LOCAL FALLBACK',
+        modelPath: [
+            'XGBoost Triage Model (Unavailable/Offline)',
+            'Gemini Clinical Reasoning (Key Missing/Offline)',
+            'Clinical Decision Support Rules (Local Engine)'
+        ],
+        disclaimer: 'Decision support only; final clinical decision remains with qualified hospital staff.',
+        isSimulated: true
     };
 };
 
@@ -183,7 +279,6 @@ export const triageService = {
     async getWaitingPatients(): Promise<PatientRecord[]> {
         const email = getOwnerEmail();
         try {
-            // Fetch both Waiting and Admitted patients for the real-time priority queue
             const response = await fetch(`${getApiBase()}/api/triage?ownerEmail=${email}&filter=today`, { cache: 'no-store' });
             if (!response.ok) throw new Error('Server unreachable');
             const data: PatientRecord[] = await response.json();
@@ -197,31 +292,44 @@ export const triageService = {
         }
     },
 
-    async assessPatient(patientData: any): Promise<any> {
+    async assessPatient(patientData: any, patientContext: Partial<PatientContextData> = {}): Promise<TriageAssessmentResult> {
+        const payload = {
+            ...patientData,
+            patientContext,
+            ownerEmail: getOwnerEmail()
+        };
+
+        // Try /api/triage/analyze first, then fall back to /api/triage/assess
         try {
-            const response = await fetch(`${getApiBase()}/api/triage/assess`, {
+            let response = await fetch(`${getApiBase()}/api/triage/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...patientData, ownerEmail: getOwnerEmail() })
+                body: JSON.stringify(payload)
             });
-            if (!response.ok) throw new Error('Server unreachable');
+
+            if (!response.ok && response.status === 404) {
+                response = await fetch(`${getApiBase()}/api/triage/assess`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+
+            if (!response.ok) throw new Error(`Server returned ${response.status}`);
             return response.json();
         } catch (err) {
-            console.log('[Triage] Falling back to local clinical engine...');
+            console.log('[Triage] Remote analysis failed/unreachable. Falling back to local clinical engine...');
             await new Promise(r => setTimeout(r, SIMULATED_DELAY));
-            return {
-                ...simulateAssessment(patientData),
-                isSimulated: true
-            };
+            return simulateAssessment(patientData, patientContext);
         }
     },
 
-    async savePatient(patientData: any, assessment: any): Promise<any> {
+    async savePatient(patientData: any, assessment: any, patientContext: Partial<PatientContextData> = {}): Promise<any> {
         try {
             const response = await fetch(`${getApiBase()}/api/triage/save`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patientData, assessment, ownerEmail: getOwnerEmail() })
+                body: JSON.stringify({ patientData, assessment, patientContext, ownerEmail: getOwnerEmail() })
             });
             if (!response.ok) throw new Error('Server unreachable');
             return response.json();
@@ -230,8 +338,20 @@ export const triageService = {
             const newRecord: PatientRecord = {
                 _id: `mock-${Date.now()}`,
                 ...patientData,
+                allergies: patientContext.allergies || [],
+                medications: patientContext.medications || [],
+                chronicConditions: patientContext.chronicConditions || patientData.history || [],
+                lastVisit: patientContext.lastVisit || '',
+                emergencyContact: patientContext.emergencyContact || null,
+                patientContext: {
+                    allergies: patientContext.allergies || [],
+                    medications: patientContext.medications || [],
+                    chronicConditions: patientContext.chronicConditions || patientData.history || [],
+                    lastVisit: patientContext.lastVisit || '',
+                    emergencyContact: patientContext.emergencyContact || null,
+                },
                 assessment,
-                status: 'Waiting',
+                status: 'Admitted',
                 ownerEmail: getOwnerEmail(),
                 createdAt: new Date().toISOString(),
                 vitals: {
@@ -265,5 +385,3 @@ export const triageService = {
         }
     }
 };
-
-/* updated */

@@ -31,7 +31,8 @@ describe('Prompt 11 — 22 Scheduled Indian Languages & Lottie Experience', () =
 
   it('contains all 22 Eighth Schedule Indian Languages + English in registry', () => {
     expect(ALL_SCHEDULED_LANGUAGES.length).toBe(23);
-    const codes = ALL_SCHEDULED_LANGUAGES.map((l) => l.code);
+    const codes = ALL_SCHEDULED_LANGUAGES.map((l) => l.languageCode);
+    const bcp47Codes = ALL_SCHEDULED_LANGUAGES.map((l) => l.code);
     const requiredCodes = [
       'en', 'hi', 'ta', 'te', 'bn', 'mr', 'gu', 'kn', 'ml', 'pa',
       'or', 'as', 'brx', 'doi', 'ks', 'kok', 'mai', 'mni', 'ne', 'sa',
@@ -39,6 +40,7 @@ describe('Prompt 11 — 22 Scheduled Indian Languages & Lottie Experience', () =
     ];
     requiredCodes.forEach((code) => {
       expect(codes).toContain(code);
+      expect(bcp47Codes).toContain(`${code}-IN`);
     });
   });
 

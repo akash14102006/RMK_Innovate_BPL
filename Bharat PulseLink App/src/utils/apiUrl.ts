@@ -27,7 +27,7 @@ export function resolveApiBaseUrl(): string {
     return configured.endsWith('/api/v1') ? configured : `${configured}/api/v1`;
   }
 
-  // If on Native mobile, attempt to extract development computer host IP from Expo runtime
+  // If on Native mobile, attempt to extract development computer host IP from Expo runtime (Expo Go / Dev Client)
   const hostUri =
     Constants.expoConfig?.hostUri ||
     (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ||
@@ -42,8 +42,8 @@ export function resolveApiBaseUrl(): string {
     }
   }
 
-  // Standard fallback for Android Emulator
-  if (Platform.OS === 'android') {
+  // If in development mode on Android emulator, use 10.0.2.2; otherwise in production standalone APK preserve configured URL
+  if (Platform.OS === 'android' && typeof __DEV__ !== 'undefined' && __DEV__) {
     return configured.replace('localhost', '10.0.2.2').replace('127.0.0.1', '10.0.2.2');
   }
 

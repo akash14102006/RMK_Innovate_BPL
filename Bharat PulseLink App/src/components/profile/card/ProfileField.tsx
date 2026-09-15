@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 interface ProfileFieldProps {
   label: string;
@@ -16,6 +16,7 @@ interface ProfileFieldProps {
   isVerified?: boolean;
   isLast?: boolean;
   isDark?: boolean;
+  onPress?: () => void;
 }
 
 export const ProfileField: React.FC<ProfileFieldProps> = ({
@@ -25,6 +26,7 @@ export const ProfileField: React.FC<ProfileFieldProps> = ({
   isVerified = false,
   isLast = false,
   isDark = false,
+  onPress,
 }) => {
   const displayVal = value !== undefined && value !== null && String(value).trim().length > 0
     ? String(value)
@@ -37,14 +39,14 @@ export const ProfileField: React.FC<ProfileFieldProps> = ({
     : (isDark ? '#F1F5F9' : '#0F172A');
   const borderColor = isDark ? '#334155' : '#F1F5F9';
 
-  return (
+  const content = (
     <View
       style={[
         styles.fieldRow,
         { borderBottomColor: borderColor },
         isLast && styles.noBorder,
       ]}
-      accessibilityRole="text"
+      accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={`${label}: ${displayVal}`}
     >
       <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
@@ -57,9 +59,22 @@ export const ProfileField: React.FC<ProfileFieldProps> = ({
             <Text style={styles.verifiedDotText}>✓</Text>
           </View>
         ) : null}
+        {onPress ? (
+          <Text style={{ fontSize: 13, color: isDark ? '#94A3B8' : '#64748B', marginLeft: 6 }}>›</Text>
+        ) : null}
       </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 };
 
 const styles = StyleSheet.create({

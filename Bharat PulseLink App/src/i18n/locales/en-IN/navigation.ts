@@ -1,0 +1,25 @@
+export const navigation = {
+  home: 'Home',
+  hospitals: 'Hospitals',
+  hospitalMap: 'Hospitals Map',
+  hospitalSearch: 'Search Hospitals',
+  hospitalDetails: 'Hospital Details',
+  hospitalRoute: 'Route & Directions',
+  scan: 'Scan',
+  qrScanner: 'Scan Hospital QR',
+  mySecureQR: 'My Secure QR',
+  records: 'Records',
+  healthRecordsHome: 'Health Records',
+  profile: 'Profile',
+  settings: 'Settings',
+  notifications: 'Notifications',
+  emergency: 'Emergency',
+  back: 'Back',
+  tabHome: 'Home Tab',
+  tabHospitals: 'Hospitals Tab',
+  tabScan: 'Scan Tab',
+  tabRecords: 'Records Tab',
+  tabProfile: 'Profile Tab',
+};
+
+export default navigation;

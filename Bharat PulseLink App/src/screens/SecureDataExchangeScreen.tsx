@@ -62,7 +62,7 @@ export const SecureDataExchangeScreen: React.FC = () => {
       if (isCancelledRef.current) return;
       setCurrentStage('COMPLETED');
 
-      // If a real QR raw token was scanned, consume against authoritative backend
+      // If a real QR raw token was scanned, consume against authoritative backend or offline decryptor
       if (rawToken) {
         try {
           await QRSessionClientService.consumeQRSession({
@@ -72,7 +72,14 @@ export const SecureDataExchangeScreen: React.FC = () => {
             requestedScopes: grantedScopes,
           });
         } catch (err: any) {
-          console.warn('[QR_EXCHANGE_CONSUME] Server consume notice:', err?.message || err);
+          console.warn('[QR_EXCHANGE_CONSUME] Verification failure:', err?.message || err);
+          navigation.replace('ScanFailure', {
+            failureCode: err.code || 'QR_INVALID',
+            hospitalName,
+            message: err.message || 'QR verification failed',
+            canRetry: true,
+          });
+          return;
         }
       }
 

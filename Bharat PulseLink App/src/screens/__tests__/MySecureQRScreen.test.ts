@@ -88,6 +88,28 @@ describe('MySecureQRScreen (Prompt 107 Master Rework Logic)', () => {
     expect(res.data.qrPayload).toContain('offline=1');
   });
 
+  it('handles offline state by generating offline secure QR envelope when hospital key is available', async () => {
+    vi.mocked(QRSessionClientService.getActiveSessionUnified).mockResolvedValueOnce({
+      data: {
+        sessionId: 'off_sess_777',
+        qrPayload: 'bploff://v1?data=eyJ2ZXIiOiIxLjAiLCJtb2RlIjoiT0ZGTElORV9TRUNVUkVfUVIifQ',
+        tokenHash: 'mock_nonce_hash',
+        expiresAt: new Date(Date.now() + 300000).toISOString(),
+        ttlSeconds: 300,
+        purpose: 'HOSPITAL_CHECKIN',
+        status: 'ACTIVE',
+      },
+      isOffline: true,
+    });
+
+    const res = await QRSessionClientService.getActiveSessionUnified({
+      facilityId: 'hosp_chennai_01',
+    });
+    expect(res.isOffline).toBe(true);
+    expect(res.data.qrPayload.startsWith('bploff://')).toBe(true);
+    expect(res.data.sessionId).toBe('off_sess_777');
+  });
+
   it('handles offline state when capability pool is empty by throwing network error', async () => {
     vi.mocked(QRSessionClientService.getActiveSessionUnified).mockRejectedValueOnce(
       new Error('No offline capability available in local secure pool')

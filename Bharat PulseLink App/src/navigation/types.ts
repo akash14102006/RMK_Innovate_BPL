@@ -165,6 +165,7 @@ export type AppStackParamList = {
   AccessHistory: undefined;       // Prompt 82
   NotificationCenter: undefined;  // Prompt 83
   LanguageSettings: undefined;    // Prompt 84
+  AccessibilityCenter: undefined; // Adaptive Care Access Platform
   HelpSupport: undefined;         // Prompt 85
   ProfileSetup: { stepId?: string } | undefined;
 };

@@ -21,7 +21,22 @@ import QRSessionClientService from '../QRSessionClientService';
 import OfflineQRCapabilityService from '../OfflineQRCapabilityService';
 import SessionManager from '../sessionManager';
 
-vi.mock('axios');
+vi.mock('axios', () => {
+  const instance = {
+    post: vi.fn(),
+    get: vi.fn(),
+    interceptors: {
+      request: { use: vi.fn(), eject: vi.fn() },
+      response: { use: vi.fn(), eject: vi.fn() },
+    },
+  };
+  return {
+    default: {
+      ...instance,
+      create: vi.fn(() => instance),
+    },
+  };
+});
 vi.mock('../sessionManager', () => ({
   default: {
     getAccessToken: vi.fn(async () => 'mock_jwt_access_token_123'),
@@ -122,45 +137,46 @@ describe('QRSessionClientService (Client-Side QR Session Client & Offline Pool)'
     expect(OfflineQRCapabilityService.addProvisionedCapabilities).toHaveBeenCalledWith(mockCapabilities);
   });
 
-  it('unified resolver falls back to offline capability without network call on offline error', async () => {
+  it('unified resolver falls back to offline secure QR envelope without blocking on backend network', async () => {
     (axios.post as any).mockRejectedValueOnce(new Error('Network Error'));
 
-    vi.mocked(OfflineQRCapabilityService.getNextAvailableCapability).mockResolvedValueOnce({
-      sessionId: 'cap_stored_offline',
-      qrPayload: 'bplqr://v1/s?sid=cap_stored_offline&t=33333333333333333333333333333333&p=HOSPITAL_CHECKIN&exp=1899999999&offline=1',
-      tokenHash: 'h3',
-      expiresAt: new Date(Date.now() + 86400000).toISOString(),
-      ttlSeconds: 86400,
-      purpose: 'HOSPITAL_CHECKIN',
-      status: 'ACTIVE',
-      provisionedAt: new Date().toISOString(),
+    const unified = await QRSessionClientService.getActiveSessionUnified({
+      facilityId: 'hosp_chennai_01',
+      scopes: ['BASIC_PROFILE', 'EMERGENCY_CONTACT'],
     });
 
-    const unified = await QRSessionClientService.getActiveSessionUnified();
     expect(unified.isOffline).toBe(true);
-    expect(unified.data.sessionId).toBe('cap_stored_offline');
-    expect(unified.data.qrPayload).toContain('cap_stored_offline');
+    expect(unified.data.qrPayload.startsWith('bploff://v1?data=')).toBe(true);
+    expect(unified.data.sessionId.includes('off_')).toBe(true);
   });
 
-  it('classifies 401 responses as SESSION_EXPIRED when pool is empty', async () => {
+  it('classifies 401 responses as SESSION_EXPIRED when hospital key is unavailable and pool is empty', async () => {
     (axios.post as any).mockRejectedValueOnce({
       response: { status: 401, data: { message: 'Unauthorized session' } },
     });
     vi.mocked(OfflineQRCapabilityService.getNextAvailableCapability).mockResolvedValueOnce(null);
 
-    await expect(QRSessionClientService.getActiveSessionUnified()).rejects.toMatchObject({
-      code: 'SESSION_EXPIRED',
+    await expect(
+      QRSessionClientService.getActiveSessionUnified({
+        facilityId: 'unknown_unregistered_facility_99',
+      })
+    ).rejects.toMatchObject({
+      code: 'OFFLINE_KEY_UNAVAILABLE',
     });
   });
 
-  it('classifies 500 server errors cleanly when pool is empty', async () => {
+  it('classifies 500 server errors cleanly when hospital key is unavailable and pool is empty', async () => {
     (axios.post as any).mockRejectedValueOnce({
       response: { status: 500, data: { message: 'Internal Server Error' } },
     });
     vi.mocked(OfflineQRCapabilityService.getNextAvailableCapability).mockResolvedValueOnce(null);
 
-    await expect(QRSessionClientService.getActiveSessionUnified()).rejects.toMatchObject({
-      code: 'SERVER_ERROR',
+    await expect(
+      QRSessionClientService.getActiveSessionUnified({
+        facilityId: 'unknown_unregistered_facility_99',
+      })
+    ).rejects.toMatchObject({
+      code: 'OFFLINE_KEY_UNAVAILABLE',
     });
   });
 

@@ -1,20 +1,50 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import i18n, { SupportedLanguage } from './i18n';
+import { LanguageDescriptor, getLanguageDescriptor } from './languages';
+import {
+  formatNumber,
+  formatCurrency,
+  formatDate,
+  formatTime,
+  formatDistance,
+} from './utils/formatters';
+import { translateErrorCode } from './errors/errorMapper';
+import { getLocalizedTaxonomyLabel } from './taxonomy/hospitalTaxonomy';
 
-interface I18nContextType {
+export interface I18nContextType {
   language: SupportedLanguage;
-  setLanguage: (lang: SupportedLanguage) => Promise<void>;
-  t: (path: string, params?: Record<string, string | number>) => string;
+  descriptor: LanguageDescriptor;
+  direction: 'ltr' | 'rtl';
   isRTL: boolean;
   isReady: boolean;
+  setLanguage: (lang: SupportedLanguage) => Promise<void>;
+  t: (path: string, params?: Record<string, string | number>) => string;
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
+  formatCurrency: (amount: number) => string;
+  formatDate: (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => string;
+  formatTime: (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => string;
+  formatDistance: (meters: number) => string;
+  translateError: (errorCode?: string, fallbackMessage?: string) => string;
+  getTaxonomyLabel: (code: string) => string;
 }
 
+const defaultDescriptor = getLanguageDescriptor('en-IN');
+
 const I18nContext = createContext<I18nContextType>({
-  language: 'en',
-  setLanguage: async () => {},
-  t: (path) => path,
+  language: 'en-IN',
+  descriptor: defaultDescriptor,
+  direction: 'ltr',
   isRTL: false,
   isReady: false,
+  setLanguage: async () => {},
+  t: (path) => path,
+  formatNumber: (val) => String(val),
+  formatCurrency: (amount) => `₹${amount}`,
+  formatDate: (d) => String(d),
+  formatTime: (d) => String(d),
+  formatDistance: (m) => `${m} m`,
+  translateError: (c, fallback) => fallback || 'An unexpected error occurred.',
+  getTaxonomyLabel: (code) => code,
 });
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -46,25 +76,99 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await i18n.setLanguage(lang);
   }, []);
 
-  // t function bound to current reactive language state
+  const descriptor = useMemo(() => getLanguageDescriptor(language), [language]);
+  const isRTL = descriptor.direction === 'rtl';
+
+  // Translation function bound to current reactive state
   const t = useCallback(
     (path: string, params?: Record<string, string | number>) => {
       return i18n.t(path, params);
     },
-    // Dependency on language ensures fresh re-render binding
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    [language]
+  );
+
+  const formatNumberBound = useCallback(
+    (value: number, options?: Intl.NumberFormatOptions) => {
+      return formatNumber(value, language, options);
+    },
+    [language]
+  );
+
+  const formatCurrencyBound = useCallback(
+    (amount: number) => {
+      return formatCurrency(amount, language);
+    },
+    [language]
+  );
+
+  const formatDateBound = useCallback(
+    (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => {
+      return formatDate(date, language, options);
+    },
+    [language]
+  );
+
+  const formatTimeBound = useCallback(
+    (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => {
+      return formatTime(date, language, options);
+    },
+    [language]
+  );
+
+  const formatDistanceBound = useCallback(
+    (meters: number) => {
+      return formatDistance(meters, language);
+    },
+    [language]
+  );
+
+  const translateErrorBound = useCallback(
+    (errorCode?: string, fallbackMessage?: string) => {
+      return translateErrorCode(errorCode, fallbackMessage);
+    },
+    []
+  );
+
+  const getTaxonomyLabelBound = useCallback(
+    (code: string) => {
+      return getLocalizedTaxonomyLabel(code, language);
+    },
     [language]
   );
 
   const contextValue = useMemo(
     () => ({
       language,
+      descriptor,
+      direction: descriptor.direction,
+      isRTL,
+      isReady,
       setLanguage,
       t,
-      isRTL: i18n.isRTL(language),
-      isReady,
+      formatNumber: formatNumberBound,
+      formatCurrency: formatCurrencyBound,
+      formatDate: formatDateBound,
+      formatTime: formatTimeBound,
+      formatDistance: formatDistanceBound,
+      translateError: translateErrorBound,
+      getTaxonomyLabel: getTaxonomyLabelBound,
     }),
-    [language, setLanguage, t, isReady]
+    [
+      language,
+      descriptor,
+      isRTL,
+      isReady,
+      setLanguage,
+      t,
+      formatNumberBound,
+      formatCurrencyBound,
+      formatDateBound,
+      formatTimeBound,
+      formatDistanceBound,
+      translateErrorBound,
+      getTaxonomyLabelBound,
+    ]
   );
 
   return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>;

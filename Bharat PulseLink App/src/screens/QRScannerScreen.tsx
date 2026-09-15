@@ -54,9 +54,9 @@ export const QRScannerScreen: React.FC = () => {
     console.log('[QR_SCAN_RAW] data_length:', rawData.length, 'type:', scanningResult?.type || 'qr');
     console.log('[QR_SCAN_RAW_PREFIX]', sanitizedData.slice(0, 30));
 
-    // 1. Parse via client QR parser
+    // 1. Parse via client QR parser (recognizes both online bplqr:// and offline bploff://)
     const parsed = QRSessionClientService.parseQRString(sanitizedData);
-    console.log('[QR_SCAN_PARSED] isValid:', parsed.isValid, 'error:', parsed.errorMessage);
+    console.log('[QR_SCAN_PARSED] isValid:', parsed.isValid, 'isOffline:', parsed.isOffline, 'error:', parsed.errorMessage);
 
     if (!parsed.isValid) {
       const isExpired = parsed.errorMessage?.includes('expired');
@@ -69,12 +69,14 @@ export const QRScannerScreen: React.FC = () => {
       return;
     }
 
-    // 2. Also check legacy/hospital format if scanned
+    // 2. Resolve hospital identity
     const legacyResult = SecureQRExchangeService.parseAndValidateHospitalQR(sanitizedData);
-    const hospitalId = legacyResult.hospitalId || 'hosp_default_01';
-    const hospitalName = legacyResult.hospitalName || 'Authorized Hospital Desk';
+    const hospitalId = parsed.recipientFacilityId || legacyResult.hospitalId || 'hosp_chennai_01';
+    const hospitalName =
+      legacyResult.hospitalName ||
+      (hospitalId === 'hosp_chennai_02' ? 'Apollo Specialty Hospital' : 'Rajiv Gandhi Government General Hospital');
     const departmentName = legacyResult.departmentName || 'General OPD';
-    const counterDesk = legacyResult.counterDesk || 'Desk 1';
+    const counterDesk = legacyResult.counterDesk || 'Reception Desk 1';
     const purpose = parsed.purpose || legacyResult.purpose || 'HOSPITAL_CHECKIN';
 
     // 3. Navigate to consent confirmation
@@ -86,7 +88,8 @@ export const QRScannerScreen: React.FC = () => {
       purpose,
       requestedScopes: legacyResult.requestedScopes || ['BASIC_PROFILE', 'EMERGENCY_CONTACT', 'ALLERGIES'],
       sessionId: parsed.sessionId || `sess_${Date.now()}`,
-      rawToken: parsed.rawToken,
+      rawToken: sanitizedData,
+      isOffline: parsed.isOffline,
     });
   };
 

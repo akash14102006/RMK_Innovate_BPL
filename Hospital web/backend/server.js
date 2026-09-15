@@ -46,7 +46,12 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 if (process.env.FRONTEND_URL) {
-    allowedOrigins.push(process.env.FRONTEND_URL);
+    process.env.FRONTEND_URL.split(',').forEach(url => {
+        const trimmed = url.trim();
+        if (trimmed && !allowedOrigins.includes(trimmed)) {
+            allowedOrigins.push(trimmed);
+        }
+    });
 }
 
 app.use(cors({
@@ -54,12 +59,14 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or local scripts)
         if (!origin) return cb(null, true);
 
-        // Check if origin is in whitelist or is a netlify subdomain
+        // Check if origin is in whitelist or is netlify, catalyst, or render domain
         const isNetlify = origin.endsWith('.netlify.app');
+        const isCatalyst = origin.includes('catalystserverless.in') || origin.includes('catalystserverless.com') || origin.includes('zohocatalyst.com');
+        const isRender = origin.endsWith('.onrender.com');
         const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
-        const isInWhitelist = allowedOrigins.includes(origin);
+        const isInWhitelist = allowedOrigins.includes(origin) || allowedOrigins.includes('*');
 
-        if (isInWhitelist || isNetlify || isLocal) {
+        if (isInWhitelist || isNetlify || isCatalyst || isRender || isLocal) {
             return cb(null, true);
         }
 

@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: bpl-hospital-backend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: "Hospital web/backend"
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: REAL_DATABASE_REQUIRED
+        value: "false"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LLM_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: "*"
+      - key: BPL_INTEGRATION_BASE_URL
+        value: http://127.0.0.1:8085/api/v1
+      - key: HOSPITAL_ID
+        value: hosp_smart_triage_01
+      - key: FACILITY_ID
+        value: fac_emergency_01
+      - key: BPL_SERVICE_KEY
+        value: bpl_service_key_dev

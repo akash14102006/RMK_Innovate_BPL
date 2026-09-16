@@ -30,11 +30,31 @@ import { toast } from 'sonner';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { backendApi } from '../services/backendApi';
 
+import { classifyQRPayload, resolveOfflineQRLocally, CanonicalHospitalPatient } from '../services/offlineQRResolver';
+
 interface BPLQRScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPatientLoaded: (patientData: any) => void;
 }
+
+export type UIWorkflowState =
+  | 'SCANNING'
+  | 'QR_DETECTED'
+  | 'IDENTIFYING'
+  | 'ONLINE_RESOLUTION'
+  | 'OFFLINE_VERIFICATION'
+  | 'PATIENT_VERIFIED'
+  | 'PATIENT_LOADED';
+
+export type OfflineStep =
+  | 'QR detected'
+  | 'Verifying signature'
+  | 'Checking expiry'
+  | 'Checking hospital'
+  | 'Checking replay'
+  | 'Decrypting patient data'
+  | 'Patient verified';
 
 type CameraStatus = 'idle' | 'starting' | 'scanning' | 'detected' | 'permission_denied' | 'error';
 
@@ -70,6 +90,10 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
   const [torchOn, setTorchOn] = useState(false);
   const [isTorchSupported, setIsTorchSupported] = useState(false);
   const [videoDims, setVideoDims] = useState<{ width: number; height: number } | null>(null);
+
+  // UI State Machine
+  const [workflowState, setWorkflowState] = useState<UIWorkflowState>('SCANNING');
+  const [offlineStep, setOfflineStep] = useState<OfflineStep>('QR detected');
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const isScannerRunningRef = useRef(false);
@@ -119,6 +143,8 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
       setScanMode('camera');
       setTorchOn(false);
       setVideoDims(null);
+      setWorkflowState('SCANNING');
+      setOfflineStep('QR detected');
     }
   }, [isOpen, stopScanner]);
 
@@ -157,7 +183,7 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
     }
   }, [isOpen, selectedCameraId]);
 
-  // Main QR resolution handler
+  // Main QR resolution handler: CLASSIFIES QR PAYLOAD BEFORE ANY NETWORK REQUEST
   const handleResolveQR = async (payloadToResolve?: string) => {
     const payload = (payloadToResolve || qrInput).trim();
     if (!payload) {
@@ -168,37 +194,130 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
     setIsLoading(true);
     setError(null);
     setCameraStatus('detected');
+    setWorkflowState('QR_DETECTED');
 
     // Immediately stop camera scanning to free device video resources
     await stopScanner();
 
+    // Step 1: Pre-classify QR payload format BEFORE making any network call
+    setWorkflowState('IDENTIFYING');
+    const qrType = classifyQRPayload(payload);
+
+    if (qrType === 'OFFLINE_SECURE_QR') {
+      // =========================================================================
+      // CRITICAL ARCHITECTURE RULE: LOCAL OFFLINE FLOW ONLY
+      // No fetch(), no axios(), no localhost, no 127.0.0.1, no cloud API
+      // =========================================================================
+      setWorkflowState('OFFLINE_VERIFICATION');
+
+      try {
+        setOfflineStep('QR detected');
+        await new Promise((r) => setTimeout(r, 60));
+
+        setOfflineStep('Verifying signature');
+        await new Promise((r) => setTimeout(r, 60));
+
+        setOfflineStep('Checking expiry');
+        await new Promise((r) => setTimeout(r, 60));
+
+        setOfflineStep('Checking hospital');
+        await new Promise((r) => setTimeout(r, 60));
+
+        setOfflineStep('Checking replay');
+        await new Promise((r) => setTimeout(r, 60));
+
+        setOfflineStep('Decrypting patient data');
+        const offlineResult = await resolveOfflineQRLocally(payload);
+
+        setOfflineStep('Patient verified');
+        setWorkflowState('PATIENT_VERIFIED');
+
+        setResolvedData({
+          mode: 'OFFLINE_SECURE_QR',
+          exchangeId: offlineResult.security.sessionId,
+          patient: offlineResult.patient,
+          security: offlineResult.security,
+        });
+
+        toast.success(`Verified Locally: ${offlineResult.patient.fullName}`);
+      } catch (err: any) {
+        console.error('[BPL OFFLINE QR] Local verification error:', err);
+        setWorkflowState('SCANNING');
+        let errorMsg = err.message || 'Unable to verify this patient QR.';
+
+        if (errorMsg.includes('expired')) {
+          errorMsg = 'This QR code has expired. Please ask the patient to generate a fresh QR.';
+        } else if (errorMsg.includes('already') || errorMsg.includes('replay')) {
+          errorMsg = 'This QR code was already consumed. Single-use replay protection is active.';
+        } else if (errorMsg.includes('facility') || errorMsg.includes('mismatch')) {
+          errorMsg = 'This QR code was generated for another hospital and cannot be decrypted here.';
+        } else if (errorMsg.includes('tampered') || errorMsg.includes('Integrity')) {
+          errorMsg = 'Integrity check failed: QR payload was altered or corrupted.';
+        }
+
+        setError(errorMsg);
+        toast.error(errorMsg);
+
+        if (scanMode === 'camera') {
+          setTimeout(() => {
+            startCameraScanner();
+          }, 1500);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // =========================================================================
+    // ONLINE SECURE QR FLOW (bplqr://)
+    // Preserves existing secure online flow with friendly error masking
+    // =========================================================================
+    setWorkflowState('ONLINE_RESOLUTION');
+
     try {
-      console.log('[BPL_CAMERA] qrDetected=true');
       toast.info('Connecting to Bharat PulseLink Security Gateway...');
       const response = await backendApi.resolveBPLQR(payload);
 
       if (response.success && response.data) {
-        setResolvedData(response.data);
+        setWorkflowState('PATIENT_VERIFIED');
+        setResolvedData({
+          ...response.data,
+          mode: 'ONLINE_SECURE_QR',
+        });
         toast.success(`Verified: ${response.data.patient?.fullName || 'Patient'}`);
       } else {
         throw new Error('Unsuccessful verification from Bharat PulseLink');
       }
     } catch (err: any) {
-      console.error('[BPL QR SCAN] Error:', err);
-      let errorMsg = err.message || 'Failed to verify QR session';
+      console.error('[BPL ONLINE QR SCAN] Error:', err);
+      setWorkflowState('SCANNING');
+      const rawError = String(err?.message || err || '');
+      let errorMsg = 'Unable to verify this patient QR. Please retry or use the offline QR.';
 
-      if (errorMsg.includes('QR_SESSION_ALREADY_USED') || errorMsg.includes('already been used')) {
+      // Never expose raw technical errors like ECONNREFUSED or 127.0.0.1 to hospital staff
+      if (
+        rawError.includes('ECONNREFUSED') ||
+        rawError.includes('127.0.0.1') ||
+        rawError.includes('8085') ||
+        rawError.includes('Network Error') ||
+        rawError.includes('ERR_NETWORK') ||
+        rawError.includes('AxiosError') ||
+        rawError.includes('Failed to fetch')
+      ) {
+        errorMsg =
+          'Hospital server unavailable. Please ensure hospital backend is active or ask patient to switch to an Offline QR.';
+      } else if (rawError.includes('QR_SESSION_ALREADY_USED') || rawError.includes('already been used')) {
         errorMsg = 'This QR code was already consumed. Single-use replay protection is active.';
-      } else if (errorMsg.includes('QR_SESSION_EXPIRED') || errorMsg.includes('expired')) {
+      } else if (rawError.includes('QR_SESSION_EXPIRED') || rawError.includes('expired')) {
         errorMsg = 'This QR code has expired. Please ask the patient to generate a fresh QR.';
-      } else if (errorMsg.includes('FORBIDDEN') || errorMsg.includes('consent')) {
+      } else if (rawError.includes('FORBIDDEN') || rawError.includes('consent')) {
         errorMsg = 'Access denied: Patient consent policy does not authorize this request.';
       }
 
       setError(errorMsg);
       toast.error(errorMsg);
 
-      // In camera mode, restart camera scanner after a short delay so user can try again
       if (scanMode === 'camera') {
         setTimeout(() => {
           startCameraScanner();
@@ -512,12 +631,33 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
                     )}
 
                     {/* QR Detected & Resolving State */}
-                    {cameraStatus === 'detected' && (
+                    {cameraStatus === 'detected' && workflowState !== 'OFFLINE_VERIFICATION' && (
                       <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-3 p-6 text-center z-20">
                         <RefreshCw className="w-10 h-10 text-teal-400 animate-spin" />
                         <div className="space-y-1">
                           <p className="text-sm font-bold text-teal-300">QR Code Detected</p>
                           <p className="text-xs text-slate-300">Validating single-use session & consent with BPL Gateway...</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Offline Secure Verification HUD */}
+                    {workflowState === 'OFFLINE_VERIFICATION' && (
+                      <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center gap-3.5 p-6 text-center z-20">
+                        <div className="p-3 rounded-2xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
+                          <Lock className="w-8 h-8 animate-pulse text-teal-300" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-teal-300">Offline Secure Verification</p>
+                          <p className="text-xs text-teal-100 font-mono flex items-center justify-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
+                            {offlineStep}...
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-1 bg-slate-900/80 px-3 py-1 rounded-full border border-slate-700">
+                          <span className="text-teal-400 font-bold">WebCrypto RSA+AES-GCM</span>
+                          <span>•</span>
+                          <span>Zero Network Calls</span>
                         </div>
                       </div>
                     )}
@@ -603,11 +743,11 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-slate-300 flex items-center justify-between">
                       <span>QR Payload URI or Security Token</span>
-                      <code className="text-[10px] text-teal-400 bg-slate-800 px-1.5 py-0.5 rounded font-mono">bplqr://v1/s?...</code>
+                      <code className="text-[10px] text-teal-400 bg-slate-800 px-1.5 py-0.5 rounded font-mono">bploff:// or bplqr://</code>
                     </label>
                     <div className="flex gap-2">
                       <Input
-                        placeholder="Paste bplqr://v1/s?sid=...&t=... or use barcode gun"
+                        placeholder="Paste bploff://v1?data=... or bplqr://v1/s?sid=..."
                         value={qrInput}
                         onChange={(e) => setQrInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleResolveQR()}
@@ -627,11 +767,10 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
                   <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/70 text-xs text-slate-400 space-y-2">
                     <div className="flex items-center gap-1.5 text-slate-200 font-semibold">
                       <Lock className="w-3.5 h-3.5 text-teal-400" />
-                      Zero PHI In QR Token — Strict Cryptographic Boundary
+                      Automatic Offline / Online Flow Classification
                     </div>
                     <p className="text-[11px] leading-relaxed text-slate-400">
-                      The dynamic QR code contains zero Personally Identifiable Health Information (PHI).
-                      The Hospital Backend verifies token validity, facility identity, and patient consent before receiving the approved clinical record.
+                      Payloads starting with <code className="text-teal-300 font-mono">bploff://</code> are verified 100% locally in-browser using WebCrypto without network dependency.
                     </p>
                   </div>
                 </div>
@@ -642,7 +781,7 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
                 <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5 shadow-inner">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
                   <div className="space-y-0.5">
-                    <span className="font-semibold text-rose-200">Validation Error:</span>
+                    <span className="font-semibold text-rose-200">Verification Notice:</span>
                     <p className="text-rose-300/90 leading-relaxed">{error}</p>
                   </div>
                 </div>
@@ -662,12 +801,12 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
                       <Sparkles className="w-3.5 h-3.5 text-teal-400" />
                     </div>
                     <div className="text-[11px] text-teal-300 font-mono mt-0.5">
-                      Exchange ID: {resolvedData.exchangeId}
+                      Session ID: {resolvedData.exchangeId}
                     </div>
                   </div>
                 </div>
-                <Badge className="bg-teal-600 text-white text-xs font-semibold px-2.5 py-1">
-                  Consent Verified
+                <Badge className={`text-white text-xs font-semibold px-2.5 py-1 ${resolvedData.mode === 'OFFLINE_SECURE_QR' ? 'bg-emerald-600 border border-emerald-400/40' : 'bg-teal-600'}`}>
+                  {resolvedData.mode === 'OFFLINE_SECURE_QR' ? 'Offline Encrypted QR' : 'Consent Verified'}
                 </Badge>
               </div>
 
@@ -675,24 +814,24 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80">
                   <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Patient Name</div>
-                  <div className="text-sm font-black text-white mt-1">{resolvedData.patient?.fullName || 'N/A'}</div>
+                  <div className="text-sm font-black text-white mt-1">{resolvedData.patient?.fullName || resolvedData.patient?.name || 'Not recorded'}</div>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80">
                   <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Age / Gender</div>
                   <div className="text-sm font-black text-white mt-1">
-                    {resolvedData.patient?.age || '36'} yrs • {resolvedData.patient?.gender || 'MALE'}
+                    {resolvedData.patient?.age && resolvedData.patient.age !== 'Not recorded' ? `${resolvedData.patient.age} yrs` : 'Age N/A'} • {resolvedData.patient?.gender || 'Not recorded'}
                   </div>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80">
                   <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Blood Group</div>
                   <div className="text-sm font-black text-rose-400 mt-1">
-                    {resolvedData.patient?.bloodGroup || 'Not specified'}
+                    {resolvedData.patient?.bloodGroup || 'Not recorded'}
                   </div>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80">
                   <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">ABHA ID</div>
                   <div className="text-xs font-bold text-teal-300 font-mono mt-1">
-                    {resolvedData.patient?.abhaId || '12-3456-7890-1234'}
+                    {resolvedData.patient?.abhaId || 'Not registered'}
                   </div>
                 </div>
               </div>

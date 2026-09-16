@@ -123,17 +123,13 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
         history: [] as string[]
     });
 
-    // High-value patient context details from Bharat PulseLink Patient Model
+    // Canonical patient context details from Bharat PulseLink Patient Model (Zero hardcoded mocks)
     const [patientContext, setPatientContext] = useState<PatientContextData>({
-        allergies: ['Penicillin (Moderate)'],
-        medications: ['Metformin 500mg (Daily)'],
-        chronicConditions: ['Type 2 Diabetes', 'Hypertension'],
-        lastVisit: '12 Aug 2026 (Apollo Clinic)',
-        emergencyContact: {
-            name: 'Rajesh Sharma',
-            relationship: 'Father',
-            phone: '+91 98765 43211'
-        }
+        allergies: [],
+        medications: [],
+        chronicConditions: [],
+        lastVisit: 'Not recorded',
+        emergencyContact: null
     });
 
     const DEFAULT_MEDICAL_CONDITIONS = ['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease', 'None'];
@@ -143,32 +139,34 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
     const [bplPatientInfo, setBplPatientInfo] = useState<{
         exchangeId?: string;
         abhaId?: string;
-        emergencyContact?: { name: string; relationship: string; phone?: string };
+        emergencyContact?: { name: string; relationship: string; phone?: string } | null;
         verifiedAt?: string;
     } | null>(null);
     const ehrInputRef = useRef<HTMLInputElement>(null);
 
     const handleBPLPatientLoaded = (patient: any) => {
         // Safely normalize conditions and allergies
-        const rawConditions = Array.isArray(patient.conditions) ? patient.conditions : [];
+        const rawConditions = Array.isArray(patient.conditions)
+            ? patient.conditions
+            : (Array.isArray(patient.chronicConditions) ? patient.chronicConditions : []);
         const rawAllergies = Array.isArray(patient.allergies) ? patient.allergies : [];
 
         const conditions = rawConditions.map((c: any) => {
-            if (typeof c === 'string') return c;
+            if (typeof c === 'string') return c.trim();
             return c.condition_name || c.conditionName || c.name || '';
         }).filter(Boolean);
 
         const allergies = rawAllergies.map((a: any) => {
-            if (typeof a === 'string') return a;
+            if (typeof a === 'string') return a.trim();
             const sub = a.substance || a.allergen || a.name || '';
             const sev = a.severity ? ` (${a.severity})` : '';
-            return sub ? `${sub}${sev}` : '';
+            return sub ? `${sub}${sev}`.trim() : '';
         }).filter(Boolean);
 
         const rawMedications = Array.isArray(patient.medications) ? patient.medications : [];
         const medications = rawMedications.map((m: any) => {
-            if (typeof m === 'string') return m;
-            const name = m.name || m.medicationName || '';
+            if (typeof m === 'string') return m.trim();
+            const name = m.medicationName || m.name || '';
             const dose = m.dosage ? ` ${m.dosage}` : '';
             return `${name}${dose}`.trim();
         }).filter(Boolean);
@@ -179,16 +177,16 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
             setCustomConditions(prev => Array.from(new Set([...prev, ...extraConditions])));
         }
 
-        let lastVisitDate = '12 Aug 2026 (Apollo Clinic)';
+        let lastVisitDate = patient.lastVisit || 'Not recorded';
         if (Array.isArray(patient.surgeries) && patient.surgeries.length > 0) {
             const s = patient.surgeries[0];
-            lastVisitDate = `${s.yearOrDate || '2026'} - ${s.procedureName || 'Encounter'}${s.hospitalName ? ` (${s.hospitalName})` : ''}`;
+            lastVisitDate = `${s.yearOrDate || 'Recent'} - ${s.procedureName || 'Encounter'}${s.hospitalName ? ` (${s.hospitalName})` : ''}`;
         }
 
         const emergencyContact = patient.emergencyContact ? {
             name: patient.emergencyContact.name || patient.emergencyContact.contactName || 'Emergency Contact',
             relationship: patient.emergencyContact.relationship || 'Caregiver',
-            phone: patient.emergencyContact.phone || patient.emergencyContact.primaryPhone || patient.primaryPhone || '+91 98765 43211'
+            phone: patient.emergencyContact.phone || patient.emergencyContact.primaryPhone || 'Not recorded'
         } : null;
 
         setBplPatientInfo({
@@ -199,25 +197,32 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
         });
 
         setPatientContext({
-            allergies: allergies.length > 0 ? allergies : ['No known drug allergies'],
-            medications: medications.length > 0 ? medications : ['None reported'],
-            chronicConditions: conditionHistory.length > 0 ? conditionHistory : ['No chronic conditions documented'],
+            allergies,
+            medications,
+            chronicConditions: conditionHistory,
             lastVisit: lastVisitDate,
             emergencyContact
         });
 
+        const effectiveName = patient.fullName || patient.name;
+        const effectiveGender = patient.gender
+            ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase())
+            : undefined;
+
         setFormData(prev => ({
             ...prev,
-            name: patient.fullName || prev.name,
-            age: patient.age ? String(patient.age) : prev.age,
-            gender: patient.gender ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()) : prev.gender,
-            phone: patient.primaryPhone || prev.phone,
-            bloodGroup: patient.bloodGroup || prev.bloodGroup,
+            name: (effectiveName && effectiveName !== 'Not recorded') ? effectiveName : prev.name,
+            age: (patient.age && patient.age !== 'Not recorded') ? String(patient.age) : prev.age,
+            gender: (effectiveGender && effectiveGender !== 'Not recorded') ? effectiveGender : prev.gender,
+            phone: (patient.primaryPhone && patient.primaryPhone !== 'Not recorded')
+                ? patient.primaryPhone
+                : ((patient.phone && patient.phone !== 'Not recorded') ? patient.phone : prev.phone),
+            bloodGroup: (patient.bloodGroup && patient.bloodGroup !== 'Not recorded') ? patient.bloodGroup : prev.bloodGroup,
             history: conditionHistory.length > 0 ? conditionHistory : prev.history,
             symptoms: prev.symptoms || (allergies.length > 0 ? `Known Allergies: ${allergies.join(', ')}` : ''),
         }));
 
-        toast.success(`Loaded verified patient: ${patient.fullName}`);
+        toast.success(`Loaded verified patient: ${effectiveName || 'Patient'}`);
     };
 
     const generatePatientId = () => {
@@ -1023,103 +1028,167 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
                                     </div>
                                 </div>
 
-                                {/* Patient Context (Compact High-Value Clinical Fields from Bharat PulseLink) */}
-                                <div className="space-y-2 pt-1">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                {/* Patient Context (Compact Enterprise Neumorphic Card Grid) */}
+                                <div className="space-y-2 pt-1 pb-1">
+                                    {/* Section Header */}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <Label className="text-base font-semibold text-slate-800 flex items-center gap-2">
                                             <Layers className="w-4 h-4 text-teal-600" />
                                             Patient Context
                                         </Label>
-                                        <span className="text-[10px] text-teal-700 font-mono uppercase tracking-wider bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
-                                            EHR Verified
-                                        </span>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-2.5">
-                                        {/* Allergies */}
-                                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-teal-300 transition-all">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-tight flex items-center gap-1">
-                                                    <AlertTriangle className="w-3 h-3 text-rose-500" />
-                                                    Allergies
-                                                </span>
-                                                <span className="text-[9px] text-rose-600 font-semibold">
-                                                    {patientContext.allergies.length > 0 ? `${patientContext.allergies.length} recorded` : 'None'}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs font-bold text-slate-800 truncate" title={patientContext.allergies.join(', ')}>
-                                                {patientContext.allergies.length > 0 ? patientContext.allergies.join(', ') : 'No known drug allergies'}
-                                            </p>
-                                        </div>
-
-                                        {/* Current Medications */}
-                                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-teal-300 transition-all">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-tight flex items-center gap-1">
-                                                    <Pill className="w-3 h-3 text-indigo-500" />
-                                                    Current Medications
-                                                </span>
-                                                <span className="text-[9px] text-indigo-600 font-semibold">
-                                                    {patientContext.medications.length > 0 ? `${patientContext.medications.length} active` : 'None'}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs font-bold text-slate-800 truncate" title={patientContext.medications.join(', ')}>
-                                                {patientContext.medications.length > 0 ? patientContext.medications.join(', ') : 'None reported'}
-                                            </p>
-                                        </div>
-
-                                        {/* Chronic Conditions */}
-                                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-teal-300 transition-all">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-tight flex items-center gap-1">
-                                                    <HeartPulse className="w-3 h-3 text-amber-500" />
-                                                    Chronic Conditions
-                                                </span>
-                                                <span className="text-[9px] text-amber-600 font-semibold">
-                                                    {patientContext.chronicConditions.length > 0 ? `${patientContext.chronicConditions.length} flagged` : 'None'}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs font-bold text-slate-800 truncate" title={patientContext.chronicConditions.join(', ')}>
-                                                {patientContext.chronicConditions.length > 0 ? patientContext.chronicConditions.join(', ') : 'No chronic conditions'}
-                                            </p>
-                                        </div>
-
-                                        {/* Last Hospital Visit */}
-                                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-teal-300 transition-all">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-tight flex items-center gap-1">
-                                                    <Clock className="w-3 h-3 text-teal-600" />
-                                                    Last Hospital Visit
-                                                </span>
-                                                <span className="text-[9px] text-slate-400 font-semibold">Encounter</span>
-                                            </div>
-                                            <p className="text-xs font-bold text-slate-800 truncate" title={patientContext.lastVisit}>
-                                                {patientContext.lastVisit || '12 Aug 2026 (Apollo Clinic)'}
-                                            </p>
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-50/80 border border-teal-200/70 text-teal-700 text-[10.5px] font-medium tracking-wide">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                                            EHR VERIFIED
                                         </div>
                                     </div>
 
-                                    {/* Emergency Contact */}
-                                    {patientContext.emergencyContact && (
-                                        <div className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 flex items-center justify-between text-xs">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1 rounded-md bg-rose-50 text-rose-600 border border-rose-100">
-                                                    <Phone className="w-3 h-3" />
+                                    {/* Compact Neumorphic 2-Column Grid */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {/* 1. Allergies Card */}
+                                        <div
+                                            className="rounded-xl p-2.5 sm:p-3 min-h-[58px] max-h-[76px] flex flex-col justify-between transition-all duration-150 hover:-translate-y-[1px] hover:border-teal-500/30 cursor-default"
+                                            style={{
+                                                backgroundColor: '#F7FAFC',
+                                                boxShadow: '0 3px 8px rgba(30, 50, 70, 0.08), inset 1px 1px 2px rgba(255,255,255,0.75), inset -1px -1px 2px rgba(180,190,200,0.12)',
+                                                border: '1px solid rgba(140,155,170,0.15)',
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                                    <span className="text-[10.5px] font-medium text-slate-500 uppercase tracking-tight">Allergies</span>
                                                 </div>
-                                                <div>
-                                                    <span className="text-[9px] uppercase font-bold text-slate-500 tracking-tight block">Emergency Contact</span>
-                                                    <span className="text-xs font-bold text-slate-800">
-                                                        {patientContext.emergencyContact.name} ({patientContext.emergencyContact.relationship})
-                                                    </span>
+                                                <span className="text-[9.5px] font-medium text-slate-400">
+                                                    {patientContext.allergies.length > 0 ? `${patientContext.allergies.length} recorded` : '0 recorded'}
+                                                </span>
+                                            </div>
+                                            <div className="text-[13.5px] font-semibold text-slate-900 truncate leading-tight" title={patientContext.allergies.join(', ') || 'No known allergies'}>
+                                                {patientContext.allergies.length > 0 ? patientContext.allergies[0] : 'No known allergies'}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 truncate leading-tight">
+                                                {patientContext.allergies.length > 1
+                                                    ? `+${patientContext.allergies.length - 1} more recorded`
+                                                    : (patientContext.allergies.length === 1 ? 'Recorded allergy' : 'None reported')}
+                                            </div>
+                                        </div>
+
+                                        {/* 2. Current Medications Card */}
+                                        <div
+                                            className="rounded-xl p-2.5 sm:p-3 min-h-[58px] max-h-[76px] flex flex-col justify-between transition-all duration-150 hover:-translate-y-[1px] hover:border-teal-500/30 cursor-default"
+                                            style={{
+                                                backgroundColor: '#F7FAFC',
+                                                boxShadow: '0 3px 8px rgba(30, 50, 70, 0.08), inset 1px 1px 2px rgba(255,255,255,0.75), inset -1px -1px 2px rgba(180,190,200,0.12)',
+                                                border: '1px solid rgba(140,155,170,0.15)',
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Pill className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                                    <span className="text-[10.5px] font-medium text-slate-500 uppercase tracking-tight">Current Medications</span>
+                                                </div>
+                                                <span className="text-[9.5px] font-medium text-slate-400">
+                                                    {patientContext.medications.length > 0 ? `${patientContext.medications.length} active` : '0 active'}
+                                                </span>
+                                            </div>
+                                            <div className="text-[13.5px] font-semibold text-slate-900 truncate leading-tight" title={patientContext.medications.join(', ') || 'None reported'}>
+                                                {patientContext.medications.length > 0 ? patientContext.medications[0] : 'None reported'}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 truncate leading-tight">
+                                                {patientContext.medications.length > 1
+                                                    ? `+${patientContext.medications.length - 1} active medications`
+                                                    : (patientContext.medications.length === 1 ? 'Active regimen' : 'No active Rx')}
+                                            </div>
+                                        </div>
+
+                                        {/* 3. Chronic Conditions Card */}
+                                        <div
+                                            className="rounded-xl p-2.5 sm:p-3 min-h-[58px] max-h-[76px] flex flex-col justify-between transition-all duration-150 hover:-translate-y-[1px] hover:border-teal-500/30 cursor-default"
+                                            style={{
+                                                backgroundColor: '#F7FAFC',
+                                                boxShadow: '0 3px 8px rgba(30, 50, 70, 0.08), inset 1px 1px 2px rgba(255,255,255,0.75), inset -1px -1px 2px rgba(180,190,200,0.12)',
+                                                border: '1px solid rgba(140,155,170,0.15)',
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <HeartPulse className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                                    <span className="text-[10.5px] font-medium text-slate-500 uppercase tracking-tight">Chronic Conditions</span>
+                                                </div>
+                                                <span className="text-[9.5px] font-medium text-slate-400">
+                                                    {patientContext.chronicConditions.length > 0 ? `${patientContext.chronicConditions.length} flagged` : '0 flagged'}
+                                                </span>
+                                            </div>
+                                            <div className="text-[13.5px] font-semibold text-slate-900 truncate leading-tight" title={patientContext.chronicConditions.join(', ') || 'None recorded'}>
+                                                {patientContext.chronicConditions.length > 0 ? patientContext.chronicConditions[0] : 'None recorded'}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 truncate leading-tight">
+                                                {patientContext.chronicConditions.length > 1
+                                                    ? patientContext.chronicConditions.slice(1).join(', ')
+                                                    : (patientContext.chronicConditions.length === 1 ? 'Monitored condition' : 'No chronic conditions')}
+                                            </div>
+                                        </div>
+
+                                        {/* 4. Last Hospital Visit Card */}
+                                        <div
+                                            className="rounded-xl p-2.5 sm:p-3 min-h-[58px] max-h-[76px] flex flex-col justify-between transition-all duration-150 hover:-translate-y-[1px] hover:border-teal-500/30 cursor-default"
+                                            style={{
+                                                backgroundColor: '#F7FAFC',
+                                                boxShadow: '0 3px 8px rgba(30, 50, 70, 0.08), inset 1px 1px 2px rgba(255,255,255,0.75), inset -1px -1px 2px rgba(180,190,200,0.12)',
+                                                border: '1px solid rgba(140,155,170,0.15)',
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Clock className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                                    <span className="text-[10.5px] font-medium text-slate-500 uppercase tracking-tight">Last Hospital Visit</span>
+                                                </div>
+                                                <span className="text-[9.5px] font-medium text-slate-400">Encounter</span>
+                                            </div>
+                                            <div className="text-[13.5px] font-semibold text-slate-900 truncate leading-tight" title={patientContext.lastVisit}>
+                                                {patientContext.lastVisit !== 'Not recorded' ? patientContext.lastVisit.split('(')[0].trim() : 'Not recorded'}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 truncate leading-tight">
+                                                {patientContext.lastVisit.includes('(')
+                                                    ? patientContext.lastVisit.split('(')[1].replace(')', '').trim() + ' • Encounter'
+                                                    : (patientContext.lastVisit !== 'Not recorded' ? 'Clinical Encounter' : 'No prior visits recorded')}
+                                            </div>
+                                        </div>
+
+                                        {/* 5. Emergency Contact (Full-Width Spanning Both Columns) */}
+                                        <div
+                                            className="col-span-1 sm:col-span-2 rounded-xl p-2.5 sm:p-3 min-h-[58px] max-h-[76px] flex flex-col justify-between transition-all duration-150 hover:-translate-y-[1px] hover:border-teal-500/30 cursor-default"
+                                            style={{
+                                                backgroundColor: '#F7FAFC',
+                                                boxShadow: '0 3px 8px rgba(30, 50, 70, 0.08), inset 1px 1px 2px rgba(255,255,255,0.75), inset -1px -1px 2px rgba(180,190,200,0.12)',
+                                                border: '1px solid rgba(140,155,170,0.15)',
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Phone className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                                    <span className="text-[10.5px] font-medium text-slate-500 uppercase tracking-tight">Emergency Contact</span>
+                                                </div>
+                                                <div
+                                                    className="px-2.5 py-0.5 rounded-lg text-[11px] font-mono font-semibold text-teal-800"
+                                                    style={{
+                                                        backgroundColor: '#EDF2F7',
+                                                        boxShadow: 'inset 1px 1px 2px rgba(255,255,255,0.9), inset -1px -1px 2px rgba(180,190,200,0.15)',
+                                                        border: '1px solid rgba(140,155,170,0.25)',
+                                                    }}
+                                                >
+                                                    {patientContext.emergencyContact?.phone || 'Not recorded'}
                                                 </div>
                                             </div>
-                                            {patientContext.emergencyContact.phone && (
-                                                <span className="text-xs font-mono font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-100">
-                                                    {patientContext.emergencyContact.phone}
-                                                </span>
-                                            )}
+                                            <div className="text-[13.5px] font-semibold text-slate-900 truncate leading-tight">
+                                                {patientContext.emergencyContact
+                                                    ? `${patientContext.emergencyContact.name} (${patientContext.emergencyContact.relationship})`
+                                                    : 'Not recorded'}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 truncate leading-tight">
+                                                {patientContext.emergencyContact ? 'Designated next-of-kin caregiver' : 'No emergency contact on file'}
+                                            </div>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
 
                                 {/* Symptoms & History */}

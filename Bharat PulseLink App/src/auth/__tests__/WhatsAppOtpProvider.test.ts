@@ -2,8 +2,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import WhatsAppOtpProvider from '../WhatsAppOtpProvider';
 
 describe('WhatsAppOtpProvider Adapter & Phone Normalization', () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     vi.restoreAllMocks();
+    process.env = { ...originalEnv };
+    process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS = 'false';
+    process.env.DEV_AUTH_BYPASS = 'false';
   });
 
   it('normalizes 10-digit Indian numbers to E.164 (+91)', () => {

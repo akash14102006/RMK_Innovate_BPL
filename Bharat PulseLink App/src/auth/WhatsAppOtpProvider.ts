@@ -11,6 +11,8 @@
 
 import { IOtpAuthProvider, AuthProviderType, AuthResult, OtpChallenge } from './types';
 import IdentityExchangeService from './IdentityExchangeService';
+import SessionManager from '../services/sessionManager';
+import { isDevAuthBypassEnabled, DEV_OTP_CODE } from './devAuthBypass';
 import { resolveApiBaseUrl } from '../utils/apiUrl';
 
 export class WhatsAppOtpProvider implements IOtpAuthProvider {
@@ -76,6 +78,28 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
 
     console.log('[AUTH] provider=whatsapp');
     console.log('[AUTH] stage=send-start');
+
+    // ── Development Auth Bypass (Zero External Provider Calls) ────────────
+    if (isDevAuthBypassEnabled()) {
+      console.log('[AUTH] DEVELOPMENT_AUTH_MODE active: generating local challenge without external API calls');
+      const challenge: OtpChallenge = {
+        challengeId: `chg_dev_${Date.now()}`,
+        phoneE164: normalized,
+        maskedPhone: WhatsAppOtpProvider.maskPhoneNumber(normalized),
+        deliveryChannel: 'whatsapp',
+        expiresAt: Date.now() + 5 * 60 * 1000,
+        resendAvailableAt: Date.now() + 30 * 1000,
+        attemptsRemaining: 5,
+      };
+
+      console.log('[WHATSAPP_OTP] OTP_CHALLENGE_CREATED (DEV)', {
+        challengeId: challenge.challengeId,
+        masked: challenge.maskedPhone,
+        channel: challenge.deliveryChannel,
+      });
+
+      return { success: true, challenge };
+    }
 
     const apiBase = resolveApiBaseUrl();
 
@@ -172,6 +196,52 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
     }
 
     console.log('[AUTH] stage=otp-verify-start');
+
+    // ── Development Auth Bypass (Accept ONLY 123456) ──────────────────────
+    if (isDevAuthBypassEnabled()) {
+      if (otp === DEV_OTP_CODE) {
+        console.log('[AUTH] DEVELOPMENT_AUTH_MODE: OTP 123456 verified successfully');
+        const phone = phoneE164 || '+919876543210';
+        const phoneDigits = phone.replace(/\D/g, '');
+        const devUserId = `usr_dev_${phoneDigits.slice(-4) || '3210'}`;
+
+        const identity = {
+          id: devUserId,
+          authProvider: 'whatsapp' as const,
+          phone,
+          displayName: `Dev Patient ${phoneDigits.slice(-4) || '3210'}`,
+          isNewUser: false,
+          termsAccepted: true,
+          profileCompleted: true,
+          createdAt: new Date().toISOString(),
+        };
+
+        const devAccessToken = `bpl_dev_session_${Date.now()}`;
+        const devRefreshToken = `bpl_dev_refresh_${Date.now()}`;
+        const expiresAt = Date.now() + 86400 * 1000;
+
+        await SessionManager.setTokens({
+          accessToken: devAccessToken,
+          refreshToken: devRefreshToken,
+          expiresAt,
+        });
+
+        console.log('[AUTH] identity-verified (DEV)');
+        console.log('[AUTH] bpl-session-created (DEV)', { userId: devUserId });
+
+        return {
+          success: true,
+          identity,
+        };
+      }
+
+      console.log('[AUTH] DEVELOPMENT_AUTH_MODE: verification failed - code is not 123456');
+      return {
+        success: false,
+        errorCode: 'INVALID_OTP',
+        error: 'Invalid verification code. Development mode accepts ONLY 123456.',
+      };
+    }
 
     const result = await IdentityExchangeService.exchangeOtpVerification(
       challengeId,

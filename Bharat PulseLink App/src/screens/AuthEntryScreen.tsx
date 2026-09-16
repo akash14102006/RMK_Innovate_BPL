@@ -25,6 +25,7 @@ import GlassCard from '../components/GlassCard';
 import AuthenticationService from '../auth/AuthenticationService';
 import WhatsAppOtpProvider from '../auth/WhatsAppOtpProvider';
 import AuthRouteResolver from '../auth/AuthRouteResolver';
+import { isDevAuthBypassEnabled } from '../auth/devAuthBypass';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'AuthEntry'>;
 
@@ -203,6 +204,17 @@ export const AuthEntryScreen: React.FC<Props> = ({ navigation }) => {
             ]}
           >
             <GlassCard style={styles.glassCard}>
+              {isDevAuthBypassEnabled() && (
+                <View style={styles.devBanner} accessible accessibilityRole="text">
+                  <View style={styles.devBadgePill}>
+                    <Text style={styles.devBadgeText}>DEVELOPMENT AUTH MODE</Text>
+                  </View>
+                  <Text style={styles.devSubtext}>
+                    External providers bypassed • WhatsApp code: <Text style={styles.devCodeHighlight}>123456</Text>
+                  </Text>
+                </View>
+              )}
+
               {errorMessage && (
                 <View style={styles.errorNotice} accessible accessibilityRole="alert">
                   <Text style={styles.errorNoticeText}>{errorMessage}</Text>
@@ -656,6 +668,39 @@ const styles = StyleSheet.create({
   modalSubmitText: {
     color: colors.textInverted,
     fontWeight: '700',
+  },
+  devBanner: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    alignItems: 'center',
+  },
+  devBadgePill: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radii.full,
+    marginBottom: spacing.xs,
+  },
+  devBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  devSubtext: {
+    fontSize: typography.caption.fontSize,
+    color: '#92400E',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  devCodeHighlight: {
+    fontWeight: '800',
+    color: '#B45309',
+    backgroundColor: 'rgba(245, 158, 11, 0.25)',
   },
 });
 

@@ -15,8 +15,13 @@ import GoogleAuthProvider from '../GoogleAuthProvider';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 describe('GoogleAuthProvider', () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     vi.restoreAllMocks();
+    process.env = { ...originalEnv };
+    process.env.EXPO_PUBLIC_DEV_AUTH_BYPASS = 'false';
+    process.env.DEV_AUTH_BYPASS = 'false';
   });
 
   it('calculates custom and default redirect URIs for development build and standalone', () => {

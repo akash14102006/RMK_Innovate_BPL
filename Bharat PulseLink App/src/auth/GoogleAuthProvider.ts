@@ -14,6 +14,8 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Crypto from 'expo-crypto';
 import IdentityExchangeService from './IdentityExchangeService';
+import SessionManager from '../services/sessionManager';
+import { isDevAuthBypassEnabled } from './devAuthBypass';
 import type { AuthResult, IAuthProvider, AuthProviderType } from './types';
 
 // Safe Linking resolver for React Native & Vitest test environment
@@ -160,6 +162,32 @@ export class GoogleAuthProvider implements IAuthProvider {
   }
 
   async authenticate(): Promise<AuthResult> {
+    // ── Development Auth Bypass (Zero External Provider Calls) ────────────
+    if (isDevAuthBypassEnabled()) {
+      console.log('[AUTH] DEVELOPMENT_AUTH_MODE: creating local dev Google session without external API calls');
+      const devGoogleId = `usr_dev_google_${Date.now().toString().slice(-4)}`;
+      const identity = {
+        id: devGoogleId,
+        authProvider: 'google' as const,
+        displayName: 'Dev Google Patient',
+        isNewUser: false,
+        termsAccepted: true,
+        profileCompleted: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      await SessionManager.setTokens({
+        accessToken: `bpl_dev_google_token_${Date.now()}`,
+        refreshToken: `bpl_dev_google_refresh_${Date.now()}`,
+        expiresAt: Date.now() + 86400 * 1000,
+      });
+
+      return {
+        success: true,
+        identity,
+      };
+    }
+
     if (!this.projectId) {
       console.warn('[GOOGLE_AUTH] EXPO_PUBLIC_DESCOPE_PROJECT_ID not configured. Provider BLOCKED.');
       return {

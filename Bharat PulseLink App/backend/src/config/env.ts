@@ -26,7 +26,7 @@ const envSchema = z.object({
   REQUEST_BODY_LIMIT_BYTES: z.coerce.number().int().default(1024 * 1024), // 1MB default
 
   // ── Database ─────────────────────────────────────────────────────────────
-  DATABASE_URL: z.string().url('DATABASE_URL must be a valid PostgreSQL connection URL'),
+  DATABASE_URL: z.string().url('DATABASE_URL must be a valid PostgreSQL connection URL').default('postgresql://bpl_user:bpl_password@127.0.0.1:5432/bharat_pulselink_dev'),
   DATABASE_POOL_MIN: z.coerce.number().int().min(1).max(50).default(2),
   DATABASE_POOL_MAX: z.coerce.number().int().min(2).max(100).default(10),
   DATABASE_POOL_IDLE_TIMEOUT_MS: z.coerce.number().int().default(30000),
@@ -81,6 +81,12 @@ const envSchema = z.object({
   BLOCKCHAIN_PROVIDER: z.enum(['polygon', 'hyperledger', 'mock', 'disabled']).default('disabled'),
   BLOCKCHAIN_NODE_URL: z.string().url().optional(),
   BLOCKCHAIN_WALLET_KEY: z.string().optional(),
+
+  // ── Development Auth Bypass ──────────────────────────────────────────────
+  DEV_AUTH_BYPASS: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
 });
 
 // ---------------------------------------------------------------------------

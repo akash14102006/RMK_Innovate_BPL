@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { AppError, ErrorCode } from '../../core/errors/AppError.js';
 import type { AppDependencies } from '../../app/container.js';
 import { createAuthMiddleware } from '../../app/middleware/auth.middleware.js';
+import { env } from '../../config/env.js';
 
 const exchangeSchema = z.object({
   sessionToken: z.string().min(1, 'sessionToken is required'),
@@ -62,8 +63,19 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AppDependen
 
       const { sessionToken, deviceFingerprint, platform, appVersion, pushToken } = parseResult.data;
 
-      // 1. Validate Descope session
-      const claims = await deps.descopeClient.validateSessionToken(sessionToken);
+      // 1. Validate Descope session (or bypass in development mode)
+      let claims;
+      if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production') {
+        deps.logger.info('dev_auth_bypass_exchange_invoked', { sessionToken });
+        claims = {
+          descopeUserId: `usr_dev_descope_${sessionToken.slice(-4) || '3210'}`,
+          email: 'dev@bharatpulselink.in',
+          phone: '+919876543210',
+          expiresAt: Date.now() + 86400 * 1000,
+        };
+      } else {
+        claims = await deps.descopeClient.validateSessionToken(sessionToken);
+      }
 
       // 2. Resolve or atomically provision canonical user via IdentityResolver
       const resolution = await deps.identityResolver.resolveOrCreateUser({
@@ -181,6 +193,23 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AppDependen
 
       const { phone } = parseResult.data;
 
+      // ── Development Auth Bypass (Zero MiniMoth API calls) ─────────────────
+      if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production') {
+        const masked = phone.length >= 10
+          ? `+91 ${phone.slice(-10, -8)}*** **${phone.slice(-3)}`
+          : phone;
+
+        deps.logger.info('dev_auth_bypass_whatsapp_send_invoked', { phone: masked });
+
+        return reply.status(200).send({
+          challengeId: `chg_dev_${Date.now()}`,
+          maskedPhone: masked,
+          deliveryChannel: 'whatsapp',
+          expiresAt: Date.now() + 300_000,
+          resendAvailableAt: Date.now() + 30_000,
+        });
+      }
+
       if (!deps.minimothClient) {
         throw new AppError({
           code: ErrorCode.INTERNAL_ERROR,
@@ -237,28 +266,50 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AppDependen
 
       const { challengeId, otp, phone, deviceFingerprint, platform, appVersion } = parseResult.data;
 
-      if (!deps.minimothClient) {
-        throw new AppError({
-          code: ErrorCode.INTERNAL_ERROR,
-          message: 'WhatsApp OTP service is not configured',
-        });
-      }
+      // ── Development Auth Bypass (Accept ONLY 123456) ──────────────────────
+      let verifyResult;
+      if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production') {
+        if (otp === '123456') {
+          deps.logger.info('dev_auth_bypass_otp_verified_successfully', { phone });
+          verifyResult = {
+            success: true,
+            phone,
+            providerSubject: `minimoth_dev_${phone.replace(/\D/g, '')}`,
+          };
+        } else {
+          deps.logger.warn('dev_auth_bypass_otp_verification_failed_non_123456', { phone, otp });
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_OTP',
+              message: 'Invalid verification code. Development mode accepts ONLY 123456.',
+            },
+            requestId: request.ctx?.requestId || 'req_otp_verify',
+          });
+        }
+      } else {
+        if (!deps.minimothClient) {
+          throw new AppError({
+            code: ErrorCode.INTERNAL_ERROR,
+            message: 'WhatsApp OTP service is not configured',
+          });
+        }
 
-      // 1. Verify OTP with MiniMoth (server-side)
-      const verifyResult = await deps.minimothClient.verifyOtp(challengeId, otp, phone);
+        // 1. Verify OTP with MiniMoth (server-side)
+        verifyResult = await deps.minimothClient.verifyOtp(challengeId, otp, phone);
 
-      if (!verifyResult.success) {
-        const statusCode = verifyResult.errorCode === 'RATE_LIMITED' || verifyResult.errorCode === 'MAX_ATTEMPTS_EXCEEDED' ? 429
-          : verifyResult.errorCode === 'OTP_EXPIRED' ? 410 : 400;
+        if (!verifyResult.success) {
+          const statusCode = verifyResult.errorCode === 'RATE_LIMITED' || verifyResult.errorCode === 'MAX_ATTEMPTS_EXCEEDED' ? 429
+            : verifyResult.errorCode === 'OTP_EXPIRED' ? 410 : 400;
 
-        return reply.status(statusCode).send({
-          error: {
-            code: verifyResult.errorCode || 'VERIFICATION_FAILED',
-            message: verifyResult.error || 'The verification code is invalid or expired.',
-            ...(verifyResult.attemptsRemaining !== undefined && { attemptsRemaining: verifyResult.attemptsRemaining }),
-          },
-          requestId: request.ctx?.requestId || 'req_otp_verify',
-        });
+          return reply.status(statusCode).send({
+            error: {
+              code: verifyResult.errorCode || 'VERIFICATION_FAILED',
+              message: verifyResult.error || 'The verification code is invalid or expired.',
+              ...(verifyResult.attemptsRemaining !== undefined && { attemptsRemaining: verifyResult.attemptsRemaining }),
+            },
+            requestId: request.ctx?.requestId || 'req_otp_verify',
+          });
+        }
       }
 
       // 2. Resolve or create canonical BPL user via IdentityResolver

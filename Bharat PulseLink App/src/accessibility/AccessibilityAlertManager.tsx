@@ -91,9 +91,9 @@ export const AccessibilityAlertBanner: React.FC = () => {
       return () => clearTimeout(timer);
     };
 
-    listeners.add(handleNewAlert);
+    const unsubscribe = subscribeAccessibilityAlert(handleNewAlert);
     return () => {
-      listeners.delete(handleNewAlert);
+      unsubscribe();
     };
   }, [preferences.visualAlerts, preferences.reducedMotion, triggerHaptic, announce, dismissAlert, fadeAnim]);
 

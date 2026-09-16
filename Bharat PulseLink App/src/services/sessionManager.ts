@@ -90,6 +90,10 @@ class SessionManager {
     return this.tokens ? this.tokens.accessToken : null;
   }
 
+  getTokens(): Tokens | null {
+    return this.tokens;
+  }
+
   async setTokens(tokens: Tokens) {
     this.tokens = tokens;
     try {

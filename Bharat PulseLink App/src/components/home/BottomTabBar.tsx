@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import { spacing } from '../../theme/tokens';
 import { useI18n } from '../../i18n/I18nContext';
+import { useAccessibility } from '../../accessibility/AccessibilityContext';
 
 export type TabId = 'Home' | 'Hospitals' | 'Scan' | 'Records' | 'Profile';
 
@@ -13,11 +14,12 @@ export interface BottomTabBarProps {
 }
 
 export const BOTTOM_NAV_HEIGHT = 64;
-export const getBottomNavHeight = (bottomInset: number = 0) =>
-  BOTTOM_NAV_HEIGHT + Math.max(bottomInset, 10);
+export const getBottomNavHeight = (bottomInset: number = 0, isLarge: boolean = false) =>
+  (isLarge ? 72 : BOTTOM_NAV_HEIGHT) + Math.max(bottomInset, 10);
 
 export const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeTab, onSelectTab }) => {
   const { t, isRTL } = useI18n();
+  const { isLargeControls, triggerHaptic } = useAccessibility();
   const insets = useSafeAreaInsets();
   const bottomPadding = Math.max(insets.bottom, 10);
 
@@ -138,31 +140,35 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeTab, onSelectT
       pointerEvents="box-none"
       accessibilityRole="tablist"
     >
-      <View style={[styles.bar, isRTL && styles.barRTL]}>
+      <View style={[styles.bar, isRTL && styles.barRTL, isLargeControls && styles.largeBar]}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <TouchableOpacity
               key={tab.id}
-              style={styles.tabItem}
-              onPress={() => onSelectTab(tab.id)}
+              style={[styles.tabItem, isLargeControls && styles.largeTabItem]}
+              onPress={() => {
+                triggerHaptic('selection');
+                onSelectTab(tab.id);
+              }}
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={tab.accessibilityLabel}
               activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 2, right: 2 }}
+              hitSlop={isLargeControls ? { top: 12, bottom: 12, left: 6, right: 6 } : { top: 8, bottom: 8, left: 2, right: 2 }}
             >
               <View
                 style={[
                   styles.iconCapsule,
                   isActive && styles.iconCapsuleActive,
+                  isLargeControls && styles.largeIconCapsule,
                 ]}
               >
                 {tab.icon(isActive)}
               </View>
               <View style={styles.labelWrapper}>
                 <Text
-                  style={[styles.tabLabel, isActive && styles.tabLabelActive]}
+                  style={[styles.tabLabel, isActive && styles.tabLabelActive, isLargeControls && styles.largeTabLabel]}
                   numberOfLines={1}
                   ellipsizeMode="tail"
                   maxFontSizeMultiplier={1.15}
@@ -206,6 +212,10 @@ const styles = StyleSheet.create({
   barRTL: {
     flexDirection: 'row-reverse',
   },
+  largeBar: {
+    paddingVertical: 10,
+    borderRadius: 28,
+  },
   tabItem: {
     flex: 1,
     maxWidth: '20%',
@@ -215,6 +225,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 1,
     minHeight: 48,
   },
+  largeTabItem: {
+    minHeight: 56,
+    paddingVertical: 5,
+  },
   iconCapsule: {
     width: 44,
     height: 28,
@@ -222,8 +236,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconCapsuleActive: {
-    backgroundColor: 'rgba(15, 118, 110, 0.12)',
+  largeIconCapsule: {
+    width: 48,
+    height: 32,
+    borderRadius: 16,
   },
   labelWrapper: {
     width: '100%',
@@ -238,6 +254,10 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     maxWidth: '100%',
+  },
+  largeTabLabel: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   tabLabelActive: {
     color: '#0F766E',

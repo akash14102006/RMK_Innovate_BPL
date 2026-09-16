@@ -4,6 +4,7 @@
  * Adaptive Care Access:
  * One accessibility profile controls the entire application.
  * All screens consume the same single source of truth.
+ * Full Device Capability Truth Model & Multi-Sensory Accommodations.
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
@@ -19,6 +20,21 @@ import {
   ACCESSIBILITY_PROFILES,
 } from './accessibilityProfiles';
 import AccessibilityService from './accessibilityService';
+import CapabilityDetector, { AccessibilityCapabilities } from './capabilities';
+import VoiceCommandParser, { VoiceCommandResult } from './voiceCommandParser';
+import { triggerAccessibilityAlert } from './AccessibilityAlertManager';
+
+const defaultCapabilities: AccessibilityCapabilities = {
+  talkBackDetected: false,
+  talkBackStatus: 'DEVICE_DEPENDENT',
+  speechInputStatus: 'SUPPORTED',
+  ttsStatus: 'SUPPORTED',
+  hapticsStatus: 'SUPPORTED',
+  storageStatus: 'SUPPORTED',
+  highContrastSupported: true,
+  largeControlsSupported: true,
+  reducedMotionSupported: true,
+};
 
 const defaultContextValue: AccessibilityContextType = {
   preferences: DEFAULT_ACCESSIBILITY_PREFERENCES,
@@ -29,12 +45,24 @@ const defaultContextValue: AccessibilityContextType = {
   isLargeControls: false,
   isFocusMode: false,
   isEmergencyMode: false,
+  capabilities: defaultCapabilities,
+  isSpeaking: false,
   updatePreference: async () => {},
   applyProfile: async () => {},
   resetAccessibility: async () => {},
   announce: async () => {},
   speak: async () => {},
   stopSpeaking: async () => {},
+  readPage: async () => {},
+  executeVoiceCommand: () => ({
+    rawText: '',
+    normalizedText: '',
+    intent: 'UNKNOWN',
+    confidence: 0,
+    label: '',
+    requiresConfirmation: false,
+  }),
+  openSystemAccessibilitySettings: async () => false,
   triggerHaptic: () => {},
   isQuickPanelOpen: false,
   openQuickPanel: () => {},
@@ -49,21 +77,22 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [isReady, setIsReady] = useState<boolean>(false);
   const [isQuickPanelOpen, setIsQuickPanelOpen] = useState<boolean>(false);
-  const [systemReduceMotion, setSystemReduceMotion] = useState<boolean>(false);
-  const [systemScreenReader, setSystemScreenReader] = useState<boolean>(false);
+  const [capabilities, setCapabilities] = useState<AccessibilityCapabilities>(defaultCapabilities);
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-  // Initialize preferences and system listeners
+  // Initialize preferences, capabilities, and system listeners
   useEffect(() => {
     let isMounted = true;
 
     async function init() {
-      const stored = await AccessibilityService.loadPreferences();
-      const system = await AccessibilityService.querySystemAccessibility();
+      const [stored, detectedCaps] = await Promise.all([
+        AccessibilityService.loadPreferences(),
+        CapabilityDetector.detectCapabilities(),
+      ]);
 
       if (isMounted) {
         setPreferences(stored);
-        setSystemReduceMotion(system.reduceMotion);
-        setSystemScreenReader(system.screenReader);
+        setCapabilities(detectedCaps);
         setIsReady(true);
       }
     }
@@ -74,14 +103,25 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     const motionSub = AccessibilityInfo.addEventListener(
       'reduceMotionChanged',
       (enabled: boolean) => {
-        if (isMounted) setSystemReduceMotion(enabled);
+        if (isMounted) {
+          setCapabilities((prev) => ({
+            ...prev,
+            reducedMotionSupported: true,
+          }));
+        }
       }
     );
 
     const readerSub = AccessibilityInfo.addEventListener(
       'screenReaderChanged',
       (enabled: boolean) => {
-        if (isMounted) setSystemScreenReader(enabled);
+        if (isMounted) {
+          setCapabilities((prev) => ({
+            ...prev,
+            talkBackDetected: enabled,
+            talkBackStatus: enabled ? 'SUPPORTED' : 'DEVICE_DEPENDENT',
+          }));
+        }
       }
     );
 
@@ -109,7 +149,7 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
         // Asynchronously persist
         AccessibilityService.savePreferences(next);
 
-        // Feedback
+        // Multi-sensory feedback
         AccessibilityService.triggerHaptic('selection', next.hapticFeedback);
 
         return next;
@@ -137,6 +177,15 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
       AccessibilityService.triggerHaptic('success', next.hapticFeedback);
       AccessibilityService.announce(`${profileDef.name} accessibility profile activated`);
 
+      // Visual alert if visualAlerts enabled
+      if (next.visualAlerts) {
+        triggerAccessibilityAlert({
+          type: 'SUCCESS',
+          title: `${profileDef.name} Profile`,
+          message: 'Accessibility accommodations applied across all healthcare screens.',
+        });
+      }
+
       return next;
     });
   }, []);
@@ -147,6 +196,11 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     setPreferences(defaults);
     AccessibilityService.triggerHaptic('warning', true);
     AccessibilityService.announce('Accessibility settings have been reset to default.');
+    triggerAccessibilityAlert({
+      type: 'WARNING',
+      title: 'Accessibility Reset',
+      message: 'All accessibility settings restored to clinical defaults.',
+    });
   }, []);
 
   // Semantic announcement
@@ -156,18 +210,89 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // On-device text-to-speech
   const speak = useCallback(
-    async (text: string) => {
-      if (preferences.ttsEnabled || preferences.readPageEnabled) {
-        await AccessibilityService.speak(text, preferences.speechRate);
-      } else {
-        AccessibilityService.announce(text);
-      }
+    async (text: string, lang: string = 'en') => {
+      setIsSpeaking(true);
+      await AccessibilityService.speak(text, preferences.speechRate, lang, () => {
+        setIsSpeaking(false);
+      });
     },
-    [preferences.ttsEnabled, preferences.readPageEnabled, preferences.speechRate]
+    [preferences.speechRate]
   );
 
   const stopSpeaking = useCallback(async () => {
     await AccessibilityService.stopSpeaking();
+    setIsSpeaking(false);
+  }, []);
+
+  // Read semantic active page
+  const readPage = useCallback(
+    async (customText?: string) => {
+      const textToRead =
+        customText ||
+        'Bharat PulseLink Healthcare Platform. Universal Accessibility active. Quick controls ready for hospitals, emergency triage, and digital health records.';
+
+      if (isSpeaking) {
+        await stopSpeaking();
+      } else {
+        await speak(textToRead);
+      }
+    },
+    [isSpeaking, speak, stopSpeaking]
+  );
+
+  // Voice Command Execution
+  const executeVoiceCommand = useCallback(
+    (spokenText: string): VoiceCommandResult => {
+      const parsed = VoiceCommandParser.parse(spokenText);
+
+      // Execute harmless accommodation actions immediately
+      if (!parsed.requiresConfirmation && parsed.intent !== 'UNKNOWN') {
+        switch (parsed.intent) {
+          case 'INCREASE_TEXT_SIZE': {
+            const fontScales: FontScale[] = [1.0, 1.15, 1.3, 1.5, 1.75, 2.0];
+            const currentIndex = fontScales.indexOf(preferences.fontScale);
+            const nextIndex = Math.min(currentIndex + 1, fontScales.length - 1);
+            updatePreference('fontScale', fontScales[nextIndex]);
+            break;
+          }
+          case 'DECREASE_TEXT_SIZE': {
+            const fontScales: FontScale[] = [1.0, 1.15, 1.3, 1.5, 1.75, 2.0];
+            const currentIndex = fontScales.indexOf(preferences.fontScale);
+            const nextIndex = Math.max(currentIndex - 1, 0);
+            updatePreference('fontScale', fontScales[nextIndex]);
+            break;
+          }
+          case 'ENABLE_REDUCED_MOTION':
+            updatePreference('reducedMotion', true);
+            break;
+          case 'DISABLE_REDUCED_MOTION':
+            updatePreference('reducedMotion', false);
+            break;
+          case 'ENABLE_LARGE_CONTROLS':
+            updatePreference('largeControls', true);
+            break;
+          case 'DISABLE_LARGE_CONTROLS':
+            updatePreference('largeControls', false);
+            break;
+          case 'READ_PAGE':
+            readPage();
+            break;
+          case 'SHOW_ACCESSIBLE_HOSPITALS':
+            updatePreference('accessibleRouteMode', true);
+            break;
+        }
+
+        AccessibilityService.triggerHaptic('success', preferences.hapticFeedback);
+        announce(`Voice command executed: ${parsed.label}`);
+      }
+
+      return parsed;
+    },
+    [preferences.fontScale, preferences.hapticFeedback, updatePreference, readPage, announce]
+  );
+
+  const openSystemAccessibilitySettings = useCallback(async () => {
+    return await CapabilityDetector.openSystemAccessibilitySettings();
   }, []);
 
   const triggerHaptic = useCallback(
@@ -189,8 +314,7 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [triggerHaptic]);
 
   // Derived states
-  const isReducedMotion = preferences.reducedMotion || systemReduceMotion;
-  const isScreenReaderActive = preferences.screenReaderHints || systemScreenReader;
+  const isReducedMotion = preferences.reducedMotion;
 
   const value = useMemo<AccessibilityContextType>(
     () => ({
@@ -202,12 +326,17 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
       isLargeControls: preferences.largeControls,
       isFocusMode: preferences.simplifiedMode,
       isEmergencyMode: preferences.emergencyAccessibilityMode,
+      capabilities,
+      isSpeaking,
       updatePreference,
       applyProfile,
       resetAccessibility,
       announce,
       speak,
       stopSpeaking,
+      readPage,
+      executeVoiceCommand,
+      openSystemAccessibilitySettings,
       triggerHaptic,
       isQuickPanelOpen,
       openQuickPanel,
@@ -216,12 +345,17 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     [
       preferences,
       isReducedMotion,
+      capabilities,
+      isSpeaking,
       updatePreference,
       applyProfile,
       resetAccessibility,
       announce,
       speak,
       stopSpeaking,
+      readPage,
+      executeVoiceCommand,
+      openSystemAccessibilitySettings,
       triggerHaptic,
       isQuickPanelOpen,
       openQuickPanel,

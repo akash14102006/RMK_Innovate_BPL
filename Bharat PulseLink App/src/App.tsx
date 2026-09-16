@@ -7,6 +7,9 @@ import { QueryProvider } from './lib/queryClient';
 import { I18nProvider } from './i18n/I18nContext';
 import RootNavigator from './navigation/RootNavigator';
 
+import { AccessibilityAlertBanner } from './accessibility/AccessibilityAlertManager';
+import { AccessibilityQuickPanel } from './components/accessibility/AccessibilityQuickPanel';
+
 console.log('[BOOT] APP_START');
 
 export default function App() {
@@ -25,6 +28,8 @@ export default function App() {
             <QueryProvider>
               <NavigationContainer>
                 <RootNavigator />
+                <AccessibilityAlertBanner />
+                <AccessibilityQuickPanel />
               </NavigationContainer>
             </QueryProvider>
           </I18nProvider>

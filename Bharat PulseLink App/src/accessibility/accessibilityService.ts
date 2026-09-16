@@ -109,7 +109,7 @@ export class AccessibilityService {
   }
 
   /**
-   * Safe multi-pattern semantic haptic trigger.
+   * Safe multi-pattern semantic haptic trigger with native expo-haptics and Vibration fallback.
    */
   static triggerHaptic(
     pattern: 'success' | 'warning' | 'error' | 'selection' | 'emergency' = 'selection',
@@ -128,6 +128,42 @@ export class AccessibilityService {
         return;
       }
 
+      // Try native expo-haptics first
+      try {
+        const Haptics = require('expo-haptics');
+        if (Haptics) {
+          switch (pattern) {
+            case 'success':
+              if (Haptics.notificationAsync && Haptics.NotificationFeedbackType) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                return;
+              }
+              break;
+            case 'warning':
+              if (Haptics.notificationAsync && Haptics.NotificationFeedbackType) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                return;
+              }
+              break;
+            case 'error':
+            case 'emergency':
+              if (Haptics.notificationAsync && Haptics.NotificationFeedbackType) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                return;
+              }
+              break;
+            case 'selection':
+            default:
+              if (Haptics.selectionAsync) {
+                Haptics.selectionAsync();
+                return;
+              }
+              break;
+          }
+        }
+      } catch {}
+
+      // Fallback to React Native Vibration API
       switch (pattern) {
         case 'success':
           Vibration.vibrate([0, 30, 40, 50]);
@@ -152,21 +188,34 @@ export class AccessibilityService {
   }
 
   /**
-   * Device-native Text-To-Speech output.
+   * Device-native Text-To-Speech output with language code matching.
    * Runs strictly on-device without cloud transmission of patient data.
    */
-  static async speak(text: string, rate: number = 1.0): Promise<void> {
+  static async speak(
+    text: string,
+    rate: number = 1.0,
+    languageCode: string = 'en',
+    onDone?: () => void
+  ): Promise<void> {
     if (!text) return;
 
-    // First announce to screen reader
-    this.announce(text);
+    // Sanitize message: never speak raw cryptographic tokens, UUIDs, or passwords
+    const sanitized = text
+      .replace(/ey[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*/g, 'protected security token')
+      .replace(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, 'identifier')
+      .replace(/\b(pin|password|token|secret)=([^\s]+)/gi, '$1 hidden');
+
+    // Announce to screen reader
+    this.announce(sanitized);
 
     // If on web, use Web Speech API
     if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(sanitized);
         utterance.rate = rate;
+        utterance.lang = languageCode;
+        if (onDone) utterance.onend = onDone;
         window.speechSynthesis.speak(utterance);
         return;
       } catch (e) {
@@ -179,13 +228,18 @@ export class AccessibilityService {
       const ExpoSpeech = require('expo-speech');
       if (ExpoSpeech && typeof ExpoSpeech.speak === 'function') {
         ExpoSpeech.stop();
-        ExpoSpeech.speak(text, {
+        ExpoSpeech.speak(sanitized, {
           rate,
           pitch: 1.0,
+          language: languageCode,
+          onDone: onDone || undefined,
+          onStopped: onDone || undefined,
+          onError: onDone || undefined,
         });
       }
     } catch {
-      // expo-speech not installed or unavailable; AccessibilityInfo.announceForAccessibility was already dispatched
+      // expo-speech unavailable; AccessibilityInfo was already dispatched
+      if (onDone) onDone();
     }
   }
 
@@ -205,6 +259,24 @@ export class AccessibilityService {
         ExpoSpeech.stop();
       }
     } catch {}
+  }
+
+  /**
+   * Query if speech synthesis is currently speaking.
+   */
+  static async isSpeaking(): Promise<boolean> {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      return window.speechSynthesis.speaking;
+    }
+
+    try {
+      const ExpoSpeech = require('expo-speech');
+      if (ExpoSpeech && typeof ExpoSpeech.isSpeakingAsync === 'function') {
+        return await ExpoSpeech.isSpeakingAsync();
+      }
+    } catch {}
+
+    return false;
   }
 }
 

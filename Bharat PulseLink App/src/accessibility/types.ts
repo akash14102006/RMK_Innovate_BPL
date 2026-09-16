@@ -68,6 +68,9 @@ export interface AccessibilityPreferences {
   lastUpdatedISO: string;
 }
 
+import { AccessibilityCapabilities } from './capabilities';
+import { VoiceCommandResult } from './voiceCommandParser';
+
 export interface AccessibilityContextType {
   preferences: AccessibilityPreferences;
   activeProfile: AccessibilityProfile;
@@ -77,6 +80,8 @@ export interface AccessibilityContextType {
   isLargeControls: boolean;
   isFocusMode: boolean;
   isEmergencyMode: boolean;
+  capabilities: AccessibilityCapabilities;
+  isSpeaking: boolean;
   updatePreference: <K extends keyof AccessibilityPreferences>(
     key: K,
     value: AccessibilityPreferences[K]
@@ -84,10 +89,14 @@ export interface AccessibilityContextType {
   applyProfile: (profile: AccessibilityProfile) => Promise<void>;
   resetAccessibility: () => Promise<void>;
   announce: (message: string) => Promise<void>;
-  speak: (text: string) => Promise<void>;
+  speak: (text: string, lang?: string) => Promise<void>;
   stopSpeaking: () => Promise<void>;
+  readPage: (customText?: string) => Promise<void>;
+  executeVoiceCommand: (spokenText: string) => VoiceCommandResult;
+  openSystemAccessibilitySettings: () => Promise<boolean>;
   triggerHaptic: (pattern?: 'success' | 'warning' | 'error' | 'selection' | 'emergency') => void;
   isQuickPanelOpen: boolean;
   openQuickPanel: () => void;
   closeQuickPanel: () => void;
 }
+

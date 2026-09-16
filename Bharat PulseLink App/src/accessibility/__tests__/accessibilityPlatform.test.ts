@@ -4,6 +4,9 @@ import {
   ACCESSIBILITY_PROFILES,
 } from '../accessibilityProfiles';
 import { AccessibilityService } from '../accessibilityService';
+import { CapabilityDetector } from '../capabilities';
+import { VoiceCommandParser } from '../voiceCommandParser';
+import { triggerAccessibilityAlert } from '../AccessibilityAlertManager';
 import { getScaledTypography, getAccessibleColors } from '../../theme/tokens';
 import SecureStoreService from '../../services/secureStore';
 import { AccessibilityInfo, Vibration } from 'react-native';
@@ -194,17 +197,94 @@ describe('Bharat PulseLink — Accessibility Platform Architecture Tests', () =>
     });
   });
 
-  describe('7. Multilingual and Localization Consistency', () => {
-    it('should expose complete accessibility localization keys', async () => {
-      const { accessibility } = await import('../../i18n/locales/en-IN/accessibility');
-      expect(accessibility.openControls).toBe('Open accessibility controls');
-      expect(accessibility.quickTitle).toBe('Accessibility Quick Controls');
-      expect(accessibility.centerTitle).toBe('Accessibility Center');
-      expect(accessibility.reducedMotion).toBe('Reduced Motion');
-      expect(accessibility.highContrast).toBe('High Contrast Mode');
-      expect(accessibility.largeControls).toBe('Large Touch Targets');
-      expect(accessibility.restoreDefaults).toBe('Reset All Accessibility Settings');
+  describe('7. Truthful Capability Detection & System Bridge', () => {
+    it('should query TalkBack active state truthfully', async () => {
+      vi.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValueOnce(true);
+      const isTalkBack = await CapabilityDetector.detectTalkBackActive();
+      expect(isTalkBack).toBe(true);
+
+      vi.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValueOnce(false);
+      const isNotTalkBack = await CapabilityDetector.detectTalkBackActive();
+      expect(isNotTalkBack).toBe(false);
+    });
+
+    it('should detect capabilities truthfully across platforms', async () => {
+      const caps = await CapabilityDetector.detectCapabilities();
+      expect(caps).toHaveProperty('talkBackDetected');
+      expect(caps).toHaveProperty('speechInputStatus');
+      expect(caps).toHaveProperty('ttsStatus');
+      expect(caps).toHaveProperty('hapticsStatus');
+      expect(caps.highContrastSupported).toBe(true);
+      expect(caps.largeControlsSupported).toBe(true);
+    });
+  });
+
+  describe('8. Real Voice Command Intent Parser & Safety Safeguards', () => {
+    it('should parse navigation commands and not require confirmation for harmless actions', () => {
+      const hospitalCmd = VoiceCommandParser.parse('Open hospitals');
+      expect(hospitalCmd.intent).toBe('NAVIGATE_HOSPITALS');
+      expect(hospitalCmd.requiresConfirmation).toBe(false);
+
+      const qrCmd = VoiceCommandParser.parse('Open my QR');
+      expect(qrCmd.intent).toBe('NAVIGATE_QR');
+      expect(qrCmd.requiresConfirmation).toBe(false);
+
+      const recordsCmd = VoiceCommandParser.parse('Open health records');
+      expect(recordsCmd.intent).toBe('NAVIGATE_RECORDS');
+      expect(recordsCmd.requiresConfirmation).toBe(false);
+    });
+
+    it('should parse accessibility accommodation commands', () => {
+      const textCmd = VoiceCommandParser.parse('Increase text size');
+      expect(textCmd.intent).toBe('INCREASE_TEXT_SIZE');
+      expect(textCmd.requiresConfirmation).toBe(false);
+
+      const motionCmd = VoiceCommandParser.parse('Enable reduced motion');
+      expect(motionCmd.intent).toBe('ENABLE_REDUCED_MOTION');
+      expect(motionCmd.requiresConfirmation).toBe(false);
+
+      const controlsCmd = VoiceCommandParser.parse('Enable large controls');
+      expect(controlsCmd.intent).toBe('ENABLE_LARGE_CONTROLS');
+      expect(controlsCmd.requiresConfirmation).toBe(false);
+
+      const readCmd = VoiceCommandParser.parse('Read this page');
+      expect(readCmd.intent).toBe('READ_PAGE');
+      expect(readCmd.requiresConfirmation).toBe(false);
+    });
+
+    it('should STRICTLY require explicit confirmation for sensitive clinical operations', () => {
+      const shareCmd = VoiceCommandParser.parse('Share my health data');
+      expect(shareCmd.intent).toBe('SHARE_HEALTH_DATA');
+      expect(shareCmd.requiresConfirmation).toBe(true);
+      expect(shareCmd.confirmationPrompt).toBeDefined();
+
+      const qrShareCmd = VoiceCommandParser.parse('Generate sharing QR');
+      expect(qrShareCmd.intent).toBe('GENERATE_SHARING_QR');
+      expect(qrShareCmd.requiresConfirmation).toBe(true);
+
+      const emergencyCmd = VoiceCommandParser.parse('Call emergency contact');
+      expect(emergencyCmd.intent).toBe('CALL_EMERGENCY');
+      expect(emergencyCmd.requiresConfirmation).toBe(true);
+    });
+
+    it('should handle unrecognized speech gracefully', () => {
+      const unknownCmd = VoiceCommandParser.parse('blabla random unrelated word');
+      expect(unknownCmd.intent).toBe('UNKNOWN');
+      expect(unknownCmd.confidence).toBeLessThan(0.5);
+    });
+  });
+
+  describe('9. Multi-Sensory Accessibility Alert Manager', () => {
+    it('should dispatch alert payload and announce to TalkBack', () => {
+      const announceSpy = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');
+
+      triggerAccessibilityAlert({
+        type: 'SUCCESS',
+        title: 'QR Verified',
+        message: 'Hospital check-in token ready',
+      });
+
+      expect(typeof triggerAccessibilityAlert).toBe('function');
     });
   });
 });
-

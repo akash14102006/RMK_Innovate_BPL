@@ -221,6 +221,7 @@ async function start(): Promise<void> {
     jobs: jobRegistry,
     clock: systemClock,
     descopeClient,
+    minimothClient,
     identityResolver,
     patientService,
     consentAuthorizer,

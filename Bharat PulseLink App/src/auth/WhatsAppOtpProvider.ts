@@ -35,7 +35,7 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
   }
 
   /**
-   * Masks E.164 phone number for privacy display: e.g. +91 98*** **321
+   * Masks E.164 phone number for privacy display: e.g. +91 98*** **210
    */
   static maskPhoneNumber(phoneE164: string): string {
     if (!phoneE164 || phoneE164.length < 10) return phoneE164;
@@ -74,6 +74,9 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
       };
     }
 
+    console.log('[AUTH] provider=whatsapp');
+    console.log('[AUTH] stage=send-start');
+
     const apiBase = resolveApiBaseUrl();
 
     try {
@@ -95,11 +98,14 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
       })
         .finally(() => clearTimeout(timeoutId))
         .catch((err) => {
-          console.warn('[WHATSAPP_OTP] Send network error:', err?.message);
+          console.warn('[AUTH] backend=unreachable', err?.message);
           return null;
         });
 
       if (res && res.ok) {
+        console.log('[AUTH] backend=reachable');
+        console.log('[AUTH] provider-response=success');
+
         const data = (await res.json()) as {
           challengeId: string;
           maskedPhone: string;
@@ -128,6 +134,9 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
       }
 
       if (res && !res.ok) {
+        console.log('[AUTH] backend=reachable');
+        console.log('[AUTH] provider-response=error status=' + res.status);
+
         const errJson = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
         return {
           success: false,
@@ -139,7 +148,7 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
       return {
         success: false,
         errorCode: 'NETWORK_ERROR',
-        error: 'Unable to reach the verification server. Please check your connection.',
+        error: 'Unable to reach the Bharat PulseLink server. Please check your network connection.',
       };
     } catch (err: any) {
       console.error('[WHATSAPP_OTP] Request OTP exception:', err);
@@ -162,11 +171,20 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
       return { success: false, errorCode: 'INVALID_OTP_FORMAT', error: 'Please enter a valid 6-digit code' };
     }
 
-    return await IdentityExchangeService.exchangeOtpVerification(
+    console.log('[AUTH] stage=otp-verify-start');
+
+    const result = await IdentityExchangeService.exchangeOtpVerification(
       challengeId,
       otp,
       phoneE164 || '+919876543210'
     );
+
+    if (result.success) {
+      console.log('[AUTH] identity-verified');
+      console.log('[AUTH] bpl-session-created');
+    }
+
+    return result;
   }
 }
 

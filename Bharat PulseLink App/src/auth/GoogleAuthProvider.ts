@@ -1,13 +1,14 @@
 /**
- * Bharat PulseLink — Google OAuth + Descope Authentication Provider (Prompt 88)
+ * Bharat PulseLink - Google OAuth + Descope Authentication Provider
  *
  * Implements:
  * 1. Native PKCE OAuth flow (RFC 7636) targeting Descope Google Social Connection
  * 2. Pure-JS Base64URL encoding (zero Node.js Buffer dependencies for React Native Hermes)
  * 3. Native deep-link callback resolution: bharatpulselink://auth/callback
  * 4. CSRF state generation and validation
- * 5. Secure authorization code exchange with Descope API
- * 6. Identity handoff to Bharat PulseLink backend (POST /api/v1/auth/exchange)
+ * 5. Cold-start and background resume deep link callback handling
+ * 6. Secure authorization code exchange with Descope API
+ * 7. Identity handoff to Bharat PulseLink backend (POST /api/v1/auth/exchange)
  */
 
 import * as WebBrowser from 'expo-web-browser';
@@ -44,8 +45,8 @@ export class GoogleAuthProvider implements IAuthProvider {
   }
 
   /**
-   * Computes the exact redirect URI for Native Development Build and Production.
-   * Native scheme callback: bharatpulselink://auth/callback
+   * Computes the exact redirect URI for Native Development Build, Standalone APK, and Web.
+   * Canonical scheme callback: bharatpulselink://auth/callback
    */
   getRedirectUri(): string {
     if (this.customRedirectUri) {
@@ -98,25 +99,40 @@ export class GoogleAuthProvider implements IAuthProvider {
   private toBase64Url(bytes: Uint8Array): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
     let result = '';
-    const len = bytes.byteLength;
+    let i = 0;
+    const len = bytes.length;
 
-    for (let i = 0; i < len; i += 3) {
-      const b0 = bytes[i]!;
-      const b1 = i + 1 < len ? bytes[i + 1]! : 0;
-      const b2 = i + 2 < len ? bytes[i + 2]! : 0;
+    while (i < len) {
+      const b1 = bytes[i++];
+      const hasB2 = i < len;
+      const b2 = hasB2 ? bytes[i++] : 0;
+      const hasB3 = i < len;
+      const b3 = hasB3 ? bytes[i++] : 0;
 
-      result += chars[b0 >> 2];
-      result += chars[((b0 & 3) << 4) | (b1 >> 4)];
-      if (i + 1 < len) {
-        result += chars[((b1 & 15) << 2) | (b2 >> 6)];
-      }
-      if (i + 2 < len) {
-        result += chars[b2 & 63];
+      const enc1 = b1 >> 2;
+      const enc2 = ((b1 & 3) << 4) | (b2 >> 4);
+      const enc3 = ((b2 & 15) << 2) | (b3 >> 6);
+      const enc4 = b3 & 63;
+
+      if (!hasB2) {
+        result += chars.charAt(enc1) + chars.charAt(enc2);
+      } else if (!hasB3) {
+        result += chars.charAt(enc1) + chars.charAt(enc2) + chars.charAt(enc3);
+      } else {
+        result +=
+          chars.charAt(enc1) +
+          chars.charAt(enc2) +
+          chars.charAt(enc3) +
+          chars.charAt(enc4);
       }
     }
+
     return result;
   }
 
+  /**
+   * Parses URL query parameters into a key-value record.
+   */
   private parseUrlParams(url: string): Record<string, string> {
     const params: Record<string, string> = {};
     const queryIndex = url.indexOf('?');
@@ -161,18 +177,17 @@ export class GoogleAuthProvider implements IAuthProvider {
     }
 
     try {
-      console.log('[GOOGLE_AUTH] START');
-      console.log('[GOOGLE_AUTH] STARTING_PKCE_OAUTH_FLOW');
+      console.log('[AUTH] provider=google');
+      console.log('[AUTH] stage=oauth-start');
 
       const redirectUri = this.getRedirectUri();
-      console.log('[GOOGLE_AUTH] REDIRECT_URI', { redirectUri });
-      console.log('[GOOGLE_AUTH] REDIRECT_URI_CONFIGURED', { redirectUri });
+      console.log('[AUTH] redirectUri=' + redirectUri);
 
       // Determine Descope API base URL according to project region
       const region = this.projectId.slice(1, -27);
       const descopeBaseUrl = region ? `https://api.${region}.descope.com` : 'https://api.descope.com';
 
-      // 1. Initiate Descope Social Login (OAuth Start)
+      // 1. Initiate Descope Social Login (OAuth Authorize URL)
       const startUrl = `${descopeBaseUrl}/v1/auth/oauth/authorize?provider=google&redirectURL=${encodeURIComponent(
         redirectUri
       )}`;
@@ -181,7 +196,6 @@ export class GoogleAuthProvider implements IAuthProvider {
         host: descopeBaseUrl.replace('https://', ''),
         path: '/v1/auth/oauth/authorize',
         provider: 'google',
-        hasRedirectUri: true,
       });
 
       const startResponse = await fetch(startUrl, {
@@ -194,16 +208,9 @@ export class GoogleAuthProvider implements IAuthProvider {
         body: JSON.stringify({}),
       });
 
-      console.log('[GOOGLE_AUTH] DESCOPE_START_RESPONSE', {
-        status: startResponse.status,
-        ok: startResponse.ok,
-      });
-
       if (!startResponse.ok) {
-        const errorBody = await startResponse.text().catch(() => '');
         console.error('[GOOGLE_AUTH] DESCOPE_START_FAILED', {
           status: startResponse.status,
-          statusText: startResponse.statusText,
         });
         return {
           success: false,
@@ -224,36 +231,18 @@ export class GoogleAuthProvider implements IAuthProvider {
         };
       }
 
-      // Safe parse URL for diagnostic logging (no secrets/tokens exposed)
-      try {
-        const parsedUrl = new URL(googleAuthUrl);
-        console.log('[GOOGLE_AUTH] AUTH_URL', {
-          host: parsedUrl.hostname,
-          pathname: parsedUrl.pathname,
-          hasClientId: parsedUrl.searchParams.has('client_id'),
-          hasRedirectUri: parsedUrl.searchParams.has('redirect_uri'),
-          hasCodeChallenge: parsedUrl.searchParams.has('code_challenge'),
-          codeChallengeMethod: parsedUrl.searchParams.get('code_challenge_method') || 'S256',
-          hasState: parsedUrl.searchParams.has('state'),
-        });
-      } catch {}
+      console.log('[AUTH] stage=oauth-browser-open');
 
       // 2. Open browser session with the Google authorization URL
-      console.log('[GOOGLE_AUTH] BROWSER_OPEN', {
-        targetHost: 'accounts.google.com',
-        redirectUri,
-      });
-      // Safe Linking resolver for Android intent callbacks
       const Linking = getLinking();
 
-      // Check initial URL before launching
+      // Check initial URL before launching (cold-start deep link)
       const initialUrl = Linking && Linking.getInitialURL ? await Linking.getInitialURL() : null;
       if (initialUrl) {
         try {
           const initParsed = new URL(initialUrl);
           console.log('[GOOGLE_AUTH] INITIAL_URL_INSPECTED', {
             scheme: initParsed.protocol.replace(':', ''),
-            host: initParsed.hostname,
           });
         } catch {}
       }
@@ -265,11 +254,13 @@ export class GoogleAuthProvider implements IAuthProvider {
       const linkingPromise = new Promise<string | null>((resolve) => {
         if (Linking && Linking.addEventListener) {
           linkingSubscription = Linking.addEventListener('url', (event: { url: string }) => {
-            if (event?.url && event.url.startsWith('bharatpulselink://auth/callback')) {
-              console.log('[GOOGLE_AUTH] LINKING_EVENT_RECEIVED', {
-                scheme: event.url.split('://')[0],
-                hasQuery: event.url.includes('?'),
-              });
+            if (
+              event?.url &&
+              (event.url.includes('auth/callback') ||
+                event.url.startsWith('bharatpulselink:') ||
+                event.url.includes('code='))
+            ) {
+              console.log('[AUTH] callback-received');
               try {
                 WebBrowser.dismissAuthSession();
               } catch {}
@@ -296,10 +287,13 @@ export class GoogleAuthProvider implements IAuthProvider {
         // Fallback: If neither resolved yet, re-check initial URL
         if (!callbackUrl && Linking && Linking.getInitialURL) {
           const postLaunchUrl = await Linking.getInitialURL();
-          if (postLaunchUrl && postLaunchUrl.startsWith('bharatpulselink://auth/callback')) {
-            console.log('[GOOGLE_AUTH] POST_LAUNCH_URL_CAPTURED', {
-              scheme: postLaunchUrl.split('://')[0],
-            });
+          if (
+            postLaunchUrl &&
+            (postLaunchUrl.includes('auth/callback') ||
+              postLaunchUrl.startsWith('bharatpulselink:') ||
+              postLaunchUrl.includes('code='))
+          ) {
+            console.log('[AUTH] callback-received (post-launch)');
             callbackUrl = postLaunchUrl;
           }
         }
@@ -310,7 +304,7 @@ export class GoogleAuthProvider implements IAuthProvider {
       }
 
       if (!callbackUrl) {
-        console.log('[GOOGLE_AUTH] USER_CANCELLED');
+        console.log('[AUTH] stage=oauth-cancelled');
         return {
           success: false,
           errorCode: 'USER_CANCELLED',
@@ -318,25 +312,8 @@ export class GoogleAuthProvider implements IAuthProvider {
         };
       }
 
-      // Safe parse URL for diagnostic logging (zero secrets/tokens/codes)
-      try {
-        const u = new URL(callbackUrl);
-        console.log('[GOOGLE_AUTH] CALLBACK_URL_DETAILS', {
-          scheme: u.protocol.replace(':', ''),
-          host: u.hostname,
-          path: u.pathname,
-        });
-      } catch {}
-
-      // 3. Process mobile callback
+      // 3. Process mobile callback parameters
       const params = this.parseUrlParams(callbackUrl);
-
-      console.log('[GOOGLE_AUTH] CALLBACK_RECEIVED', {
-        callbackScheme: callbackUrl.split('://')[0],
-        hasCode: !!params['code'],
-        hasState: !!params['state'],
-        hasError: !!params['error'],
-      });
 
       if (params['error']) {
         console.error('[GOOGLE_AUTH] OAUTH_ERROR', { error: params['error'] });
@@ -347,15 +324,11 @@ export class GoogleAuthProvider implements IAuthProvider {
         };
       }
 
-      // If state is passed in callback, validate presence
-      if (params['state']) {
-        console.log('[GOOGLE_AUTH] STATE_VALIDATION', { isValid: true });
-      }
-
       const code = params['code'];
       if (!code) {
         const directJwt = params['sessionJwt'] || params['token'] || params['jwt'];
         if (directJwt) {
+          console.log('[AUTH] identity-verified');
           return await IdentityExchangeService.exchangeDescopeSession(directJwt);
         }
         return {
@@ -366,10 +339,7 @@ export class GoogleAuthProvider implements IAuthProvider {
       }
 
       // 4. Exchange authorization code with Descope OAuth exchange API
-      console.log('[GOOGLE_AUTH] CODE_EXCHANGE_START', {
-        host: descopeBaseUrl.replace('https://', ''),
-        path: '/v1/auth/oauth/exchange',
-      });
+      console.log('[GOOGLE_AUTH] CODE_EXCHANGE_START');
 
       const exchangeUrl = `${descopeBaseUrl}/v1/auth/oauth/exchange`;
       const exchangeResponse = await fetch(exchangeUrl, {
@@ -382,11 +352,6 @@ export class GoogleAuthProvider implements IAuthProvider {
         body: JSON.stringify({ code }),
       });
 
-      console.log('[GOOGLE_AUTH] CODE_EXCHANGE_RESULT', {
-        status: exchangeResponse.status,
-        success: exchangeResponse.ok,
-      });
-
       if (!exchangeResponse.ok) {
         console.error('[GOOGLE_AUTH] DESCOPE_EXCHANGE_FAILED', { status: exchangeResponse.status });
         return {
@@ -396,7 +361,7 @@ export class GoogleAuthProvider implements IAuthProvider {
         };
       }
 
-      console.log('[GOOGLE_AUTH] CODE_EXCHANGE_SUCCESS');
+      console.log('[AUTH] identity-verified');
 
       const descopeSession = (await exchangeResponse.json()) as {
         sessionJwt?: string;
@@ -427,8 +392,7 @@ export class GoogleAuthProvider implements IAuthProvider {
       );
 
       if (authResult.success) {
-        console.log('[GOOGLE_AUTH] BACKEND_EXCHANGE_SUCCESS');
-        console.log('[GOOGLE_AUTH] COMPLETE');
+        console.log('[AUTH] bpl-session-created');
       }
 
       return authResult;

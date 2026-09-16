@@ -24,25 +24,15 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useAccessibility } from './AccessibilityContext';
 import { spacing, radii } from '../theme/tokens';
 
-export type AlertType = 'SUCCESS' | 'WARNING' | 'ERROR' | 'EMERGENCY' | 'INFORMATION';
-
-export interface AccessibilityAlertPayload {
-  id?: string;
-  type: AlertType;
-  title: string;
-  message: string;
-  durationMs?: number;
-}
-
-type AlertListener = (alert: AccessibilityAlertPayload) => void;
-const listeners = new Set<AlertListener>();
-
-/**
- * Dispatch an enterprise accessibility visual alert across the application.
- */
-export function triggerAccessibilityAlert(payload: AccessibilityAlertPayload) {
-  listeners.forEach((listener) => listener(payload));
-}
+export {
+  type AlertType,
+  type AccessibilityAlertPayload,
+  triggerAccessibilityAlert,
+} from './accessibilityAlertEvents';
+import {
+  type AccessibilityAlertPayload,
+  subscribeAccessibilityAlert,
+} from './accessibilityAlertEvents';
 
 export const AccessibilityAlertBanner: React.FC = () => {
   const { preferences, triggerHaptic, announce, isLargeControls, isHighContrast } =

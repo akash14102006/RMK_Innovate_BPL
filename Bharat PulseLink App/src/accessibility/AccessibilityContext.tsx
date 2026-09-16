@@ -22,7 +22,7 @@ import {
 import AccessibilityService from './accessibilityService';
 import CapabilityDetector, { AccessibilityCapabilities } from './capabilities';
 import VoiceCommandParser, { VoiceCommandResult } from './voiceCommandParser';
-import { triggerAccessibilityAlert } from './AccessibilityAlertManager';
+import { triggerAccessibilityAlert } from './accessibilityAlertEvents';
 
 const defaultCapabilities: AccessibilityCapabilities = {
   talkBackDetected: false,

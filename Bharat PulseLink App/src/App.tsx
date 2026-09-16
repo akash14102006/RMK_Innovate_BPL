@@ -1,3 +1,10 @@
+import * as WebBrowser from 'expo-web-browser';
+
+// Complete any pending auth session on web/mobile deep-link
+try {
+  WebBrowser.maybeCompleteAuthSession();
+} catch {}
+
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';

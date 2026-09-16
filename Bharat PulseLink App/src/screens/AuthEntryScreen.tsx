@@ -121,6 +121,7 @@ export const AuthEntryScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleRequestOtpSubmit = async () => {
+    if (isLoadingWhatsApp || isLoadingGoogle) return;
     if (!phoneInput.trim()) {
       setPhoneError(t('auth.enterPhonePrompt'));
       return;

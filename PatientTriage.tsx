@@ -38,31 +38,45 @@ import {
   downloadCompleteAdmissionRecordPDF
 } from '../services/triagePdfService';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
 
 try {
   if (typeof window !== 'undefined' && pdfjsLib?.GlobalWorkerOptions) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker || '/pdf.worker.min.mjs';
   }
 } catch (_) {}
 
 const MIN_TEXT_PER_PAGE = 20;
 
 async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
-  const pdf = await pdfjsLib.getDocument({ data: buffer, useSystemFonts: true }).promise;
+  if (typeof window !== 'undefined' && pdfjsLib?.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker || '/pdf.worker.min.mjs';
+  }
+
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: true,
+    isEvalSupported: false,
+  });
+
+  const pdf = await loadingTask.promise;
   const numPages = pdf.numPages;
   const textParts: string[] = [];
 
   for (let i = 1; i <= numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    const text = textContent.items.map((item: any) => item.str || '').join(' ').trim();
+    const text = textContent.items
+      .map((item: any) => ('str' in item ? item.str : ''))
+      .join(' ')
+      .trim();
     textParts.push(text);
   }
 
   const nativeText = textParts.join('\n').trim();
-  const avgCharsPerPage = nativeText.length / numPages;
+  const avgCharsPerPage = numPages > 0 ? nativeText.length / numPages : 0;
 
   if (avgCharsPerPage >= MIN_TEXT_PER_PAGE) {
     return nativeText;

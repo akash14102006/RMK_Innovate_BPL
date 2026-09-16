@@ -35,17 +35,22 @@ export interface FacilityWithDistance extends FacilityRow {
 export class HospitalRepository {
   constructor(private readonly _knex: Knex) {}
 
-  async findById(id: string, trx?: Knex.Transaction): Promise<FacilityRow | null> {
+    async findById(id: string, trx?: Knex.Transaction): Promise<FacilityRow | null> {
     const db = trx ?? this._knex;
-    const fac = await db<FacilityRow>('facilities')
-      .where({ id, status: 'ACTIVE', publication_status: 'PUBLISHED' })
-      .first();
-    if (fac) return fac;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
-    const hosp = await db('hospitals').where({ id }).first();
+    if (isUUID) {
+      const fac = await db<FacilityRow>('facilities')
+        .where({ id, status: 'ACTIVE', publication_status: 'PUBLISHED' })
+        .first()
+        .catch(() => null);
+      if (fac) return fac;
+    }
+
+    const hosp = await db('hospitals').where({ id }).first().catch(() => null);
     if (hosp) {
       return {
-        id: hosp.id,
+        id: String(hosp.id),
         organization_id: null,
         name: hosp.hospital_name,
         display_name: hosp.hospital_name,

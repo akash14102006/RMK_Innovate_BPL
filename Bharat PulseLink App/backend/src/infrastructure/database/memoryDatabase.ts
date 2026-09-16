@@ -244,6 +244,40 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
       t.string('coordinate_quality_status', 50).nullable().defaultTo('VALID_COORDINATE');
     });
     logger.debug('Created hospitals table in in-memory PostgreSQL');
+    await knexInstance('hospitals').insert([
+      {
+        id: 'hosp_chennai_01',
+        hospital_name: 'Rajiv Gandhi Government General Hospital',
+        state: 'Tamil Nadu',
+        district: 'Chennai',
+        pincode: '600003',
+        hospital_category: 'Government',
+        hospital_care_type: 'Tertiary Care',
+        specialties: 'Cardiology, Trauma, Emergency Medicine',
+        facilities: 'ICU, Blood Bank, CT Scan',
+        emergency_services: '24x7 Trauma & Emergency',
+        latitude: 13.0827,
+        longitude: 80.2707,
+        location: 'POINT(80.2707 13.0827)',
+        coordinate_quality_status: 'VALID_COORDINATE',
+      },
+      {
+        id: 'hosp_chennai_02',
+        hospital_name: 'Government Stanley Medical College Hospital',
+        state: 'Tamil Nadu',
+        district: 'Chennai',
+        pincode: '600001',
+        hospital_category: 'Government',
+        hospital_care_type: 'Tertiary Care',
+        specialties: 'General Surgery, Orthopedics, Pediatrics',
+        facilities: 'ICU, Dialysis, Blood Bank',
+        emergency_services: '24x7 Emergency Services',
+        latitude: 13.1075,
+        longitude: 80.2872,
+        location: 'POINT(80.2872 13.1075)',
+        coordinate_quality_status: 'VALID_COORDINATE',
+      },
+    ]);
   }
 
   // Seed default development patient & identity

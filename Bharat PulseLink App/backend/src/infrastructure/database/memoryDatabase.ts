@@ -42,6 +42,13 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
   });
 
   memDb.public.registerFunction({
+    name: 'round',
+    args: [DataType.float],
+    returns: DataType.integer,
+    implementation: (x: number) => Math.round(x),
+  });
+
+  memDb.public.registerFunction({
     name: 'st_makepoint',
     args: [DataType.float, DataType.float],
     returns: DataType.text,
@@ -169,6 +176,41 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
       t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(knexInstance.fn.now());
     });
     logger.debug('Created qr_sessions table in in-memory PostgreSQL');
+  }
+
+  // Ensure location column on facilities table exists in pg-mem environment
+  const hasFacilities = await knexInstance.schema.hasTable('facilities');
+  if (hasFacilities) {
+    const hasLocation = await knexInstance.schema.hasColumn('facilities', 'location');
+    if (!hasLocation) {
+      await knexInstance.schema.alterTable('facilities', (t) => {
+        t.text('location').nullable();
+      });
+      logger.debug('Added location column to facilities in in-memory PostgreSQL');
+    }
+  }
+
+  // Ensure hospitals table exists in pg-mem environment for national directory fallback
+  const hasHospitals = await knexInstance.schema.hasTable('hospitals');
+  if (!hasHospitals) {
+    await knexInstance.schema.createTable('hospitals', (t) => {
+      t.string('id', 100).primary();
+      t.string('hospital_name', 255).notNullable();
+      t.string('state', 100).nullable();
+      t.string('district', 100).nullable();
+      t.string('pincode', 20).nullable();
+      t.string('hospital_category', 100).nullable();
+      t.string('hospital_care_type', 100).nullable();
+      t.text('specialties').nullable();
+      t.text('facilities').nullable();
+      t.text('emergency_services').nullable();
+      t.string('website', 255).nullable();
+      t.float('latitude').nullable();
+      t.float('longitude').nullable();
+      t.text('location').nullable();
+      t.string('coordinate_quality_status', 50).nullable().defaultTo('VALID_COORDINATE');
+    });
+    logger.debug('Created hospitals table in in-memory PostgreSQL');
   }
 
   // Seed default development patient & identity

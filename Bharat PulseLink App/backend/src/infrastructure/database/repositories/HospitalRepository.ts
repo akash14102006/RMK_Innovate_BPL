@@ -310,6 +310,7 @@ export class HospitalRepository {
 
       return [];
     } catch (err) {
+      console.error('[HOSPITAL_REPO] findNearbyHospitals query error:', err);
       return [];
     }
   }

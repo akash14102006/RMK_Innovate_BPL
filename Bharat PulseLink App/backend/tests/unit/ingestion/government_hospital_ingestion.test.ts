@@ -86,6 +86,16 @@ function createInMemoryDb() {
         return builder;
       },
 
+      whereNotNull() {
+        return builder;
+      },
+
+      count() {
+        return {
+          first: async () => ({ total: table.length }),
+        };
+      },
+
       andWhere(clause: any, val?: any) {
         if (typeof clause === 'string' && val !== undefined) {
           builder._where[clause] = val;
@@ -235,6 +245,10 @@ function createInMemoryDb() {
   knexMock.raw = (sql: string, _bindings?: any[]) => sql;
   knexMock.transaction = async (cb: any) => cb(knexMock);
   knexMock.tables = tables;
+  knexMock.schema = {
+    hasTable: async (name: string) => name === 'facilities' || name === 'hospitals',
+    hasColumn: async (_table: string, _col: string) => true,
+  };
 
   return knexMock;
 }

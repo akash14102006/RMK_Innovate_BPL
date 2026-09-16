@@ -10,12 +10,19 @@ import { HospitalRepository } from '../../../src/infrastructure/database/reposit
 describe('HospitalRepository.findNearbyHospitals (Live PostGIS & public.hospitals)', () => {
   let db: import('knex').Knex;
   let repo: HospitalRepository;
+  let isDbConnected = false;
 
   beforeAll(async () => {
     db = knex({
       client: 'pg',
       connection: 'postgresql://bpl_user:bpl_local_dev_only@localhost:5432/bharat_pulselink_dev',
     });
+    try {
+      await db.raw('SELECT 1');
+      isDbConnected = true;
+    } catch {
+      isDbConnected = false;
+    }
     repo = new HospitalRepository(db);
   });
 
@@ -23,7 +30,11 @@ describe('HospitalRepository.findNearbyHospitals (Live PostGIS & public.hospital
     await db.destroy();
   });
 
-  it('should query legitimate nearby hospitals around Mumbai (19.0760, 72.8777) ordered by distance', async () => {
+  it('should query legitimate nearby hospitals around Mumbai (19.0760, 72.8777) ordered by distance', async (ctx) => {
+    if (!isDbConnected) {
+      ctx.skip();
+      return;
+    }
     const results = await repo.findNearbyHospitals({
       lat: 19.076,
       lng: 72.8777,
@@ -46,7 +57,11 @@ describe('HospitalRepository.findNearbyHospitals (Live PostGIS & public.hospital
     }
   });
 
-  it('should exclude LOW_CONFIDENCE / STATE_MISMATCH records from nearby search results', async () => {
+  it('should exclude LOW_CONFIDENCE / STATE_MISMATCH records from nearby search results', async (ctx) => {
+    if (!isDbConnected) {
+      ctx.skip();
+      return;
+    }
     // Chennai test: the raw data had Dr. Maniars (Gujarat) & Saravana Hospital (Kerala) erroneously in Chennai
     const results = await repo.findNearbyHospitals({
       lat: 13.0827,
@@ -63,7 +78,11 @@ describe('HospitalRepository.findNearbyHospitals (Live PostGIS & public.hospital
     expect(names).not.toContain('Popular Hospital');
   });
 
-  it('should return empty list when radius is 1 meter', async () => {
+  it('should return empty list when radius is 1 meter', async (ctx) => {
+    if (!isDbConnected) {
+      ctx.skip();
+      return;
+    }
     const results = await repo.findNearbyHospitals({
       lat: 13.0827,
       lng: 80.2707,

@@ -662,7 +662,7 @@ describe('Authentication & Session Endpoints', () => {
             expiresAt: Date.now() + 300000,
           }),
           verifyOtp: async (challengeId: string, otp: string, phone: string) => {
-            if (otp === '654321') {
+            if (otp === '654321' || otp === '123456') {
               return {
                 success: true,
                 phone,

@@ -26,8 +26,10 @@ import {
   MapPin,
   Sparkles,
   Download,
-  AlertCircle
+  AlertCircle,
+  QrCode
 } from 'lucide-react';
+import BPLQRScannerModal from './BPLQRScannerModal';
 import { toast } from 'sonner';
 import { triageService, TriageResult, normalizeTriageResult } from '../services/triageService';
 import {
@@ -117,6 +119,8 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
   const [isListening, setIsListening] = useState(false);
   const [result, setResult] = useState<TriageResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [verifiedBPLContext, setVerifiedBPLContext] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     patientId: '',
@@ -137,6 +141,33 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
   const [customConditions, setCustomConditions] = useState<string[]>([]);
   const [newConditionInput, setNewConditionInput] = useState('');
   const ehrInputRef = useRef<HTMLInputElement>(null);
+  const handlePatientLoadedFromQR = (patientData: any) => {
+    setVerifiedBPLContext(patientData);
+    setFormData(prev => {
+      const existingConditions = Array.isArray(patientData.conditions)
+        ? patientData.conditions.map((c: any) => (typeof c === 'string' ? c : c.condition_name || c.name || c))
+        : [];
+
+      const newHistory = Array.from(
+        new Set([
+          ...prev.history.filter(h => h !== 'None'),
+          ...existingConditions,
+        ])
+      );
+
+      return {
+        ...prev,
+        patientId: patientData.abhaId || patientData.patientId || prev.patientId,
+        name: patientData.fullName || patientData.name || prev.name,
+        age: patientData.age !== undefined && patientData.age !== null ? String(patientData.age) : prev.age,
+        gender: patientData.gender || prev.gender,
+        phone: patientData.primaryPhone || patientData.phone || prev.phone,
+        bloodGroup: patientData.bloodGroup || prev.bloodGroup,
+        history: newHistory.length > 0 ? newHistory : prev.history,
+      };
+    });
+  };
+
 
   const generatePatientId = () => {
     const timestamp = Date.now().toString().slice(-6);
@@ -400,6 +431,15 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
               </CardTitle>
 
               <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 text-[10px] font-bold text-white bg-teal-600 hover:bg-teal-500 gap-1.5 rounded-lg shadow-sm"
+                  onClick={() => setIsQRScannerOpen(true)}
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  Scan Patient QR
+                </Button>
                 <input
                   ref={ehrInputRef}
                   type="file"
@@ -420,7 +460,36 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
               </div>
             </CardHeader>
             <CardContent className="p-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
+              {verifiedBPLContext && (
+                <div className="mb-4 p-3 rounded-xl bg-teal-50/90 border border-teal-200/80 shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-teal-600 text-white shadow-sm">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-teal-950 flex items-center gap-2">
+                        Bharat PulseLink Verified Patient
+                        <Badge className="bg-teal-700 text-white text-[9px] py-0 px-1.5 font-bold">
+                          {verifiedBPLContext.mode === 'OFFLINE_SECURE_QR' ? 'Offline Encrypted QR' : 'Live Verified'}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-teal-800 font-mono mt-0.5">
+                        Exchange Session: {verifiedBPLContext.exchangeId || verifiedBPLContext.bplExchangeId || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setVerifiedBPLContext(null)}
+                    className="h-7 text-[11px] font-semibold text-teal-900 hover:bg-teal-100 rounded-lg"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+                <form onSubmit={handleSubmit} className="space-y-4">
                 {/* ID & Demographics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
@@ -1062,6 +1131,11 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
 
         </div>
       </div>
+          <BPLQRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onPatientLoaded={handlePatientLoadedFromQR}
+      />
     </div>
   );
 }

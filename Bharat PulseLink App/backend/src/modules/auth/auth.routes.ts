@@ -193,8 +193,8 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AppDependen
 
       const { phone } = parseResult.data;
 
-      // ── Development Auth Bypass (Zero MiniMoth API calls) ─────────────────
-      if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production') {
+      // ── Development Auth Bypass (Zero MiniMoth API calls if no client provided) ─
+      if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production' && !deps.minimothClient) {
         const masked = phone.length >= 10
           ? `+91 ${phone.slice(-10, -8)}*** **${phone.slice(-3)}`
           : phone;
@@ -266,9 +266,9 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AppDependen
 
       const { challengeId, otp, phone, deviceFingerprint, platform, appVersion } = parseResult.data;
 
-      // ── Development Auth Bypass (Accept ONLY 123456) ──────────────────────
+      // ── Development Auth Bypass (Accept ONLY 123456 when client not provided) ─
       let verifyResult;
-      if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production') {
+      if (env.DEV_AUTH_BYPASS && env.NODE_ENV !== 'production' && !deps.minimothClient) {
         if (otp === '123456') {
           deps.logger.info('dev_auth_bypass_otp_verified_successfully', { phone });
           verifyResult = {

@@ -29,11 +29,14 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
 
   const memDb = newDb();
 
-  // Register PostgreSQL extensions
+  // Register PostgreSQL extensions & spatial types
   memDb.registerExtension('postgis', () => {});
   memDb.registerExtension('uuid-ossp', () => {});
   memDb.registerExtension('pgcrypto', () => {});
   memDb.registerExtension('citext', () => {});
+
+  memDb.public.registerEquivalentType({ name: 'geography', equivalentTo: DataType.text, isValid: () => true });
+  memDb.public.registerEquivalentType({ name: 'geometry', equivalentTo: DataType.text, isValid: () => true });
 
   memDb.public.registerFunction({
     name: 'postgis_version',
@@ -66,9 +69,10 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
     name: 'st_distance',
     args: [DataType.text, DataType.text],
     returns: DataType.float,
-    implementation: (p1: string, p2: string) => {
-      const parsePt = (ptStr: string) => {
-        const m = typeof ptStr === 'string' ? ptStr.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i) : null;
+    implementation: (p1: any, p2: any) => {
+      const parsePt = (ptStr: any) => {
+        const str = String(ptStr || '');
+        const m = str.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i);
         if (!m) return { lon: 0, lat: 0 };
         return { lon: parseFloat(m[1]), lat: parseFloat(m[2]) };
       };
@@ -92,9 +96,10 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
     name: 'st_dwithin',
     args: [DataType.text, DataType.text, DataType.float],
     returns: DataType.bool,
-    implementation: (p1: string, p2: string, radius: number) => {
-      const parsePt = (ptStr: string) => {
-        const m = typeof ptStr === 'string' ? ptStr.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i) : null;
+    implementation: (p1: any, p2: any, radius: any) => {
+      const parsePt = (ptStr: any) => {
+        const str = String(ptStr || '');
+        const m = str.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i);
         if (!m) return { lon: 0, lat: 0 };
         return { lon: parseFloat(m[1]), lat: parseFloat(m[2]) };
       };
@@ -111,7 +116,35 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
           Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       const dist = R * c;
-      return dist <= radius;
+      return dist <= Number(radius);
+    },
+  });
+
+  memDb.public.registerFunction({
+    name: 'st_dwithin',
+    args: [DataType.text, DataType.text, DataType.integer],
+    returns: DataType.bool,
+    implementation: (p1: any, p2: any, radius: any) => {
+      const parsePt = (ptStr: any) => {
+        const str = String(ptStr || '');
+        const m = str.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i);
+        if (!m) return { lon: 0, lat: 0 };
+        return { lon: parseFloat(m[1]), lat: parseFloat(m[2]) };
+      };
+      const pt1 = parsePt(p1);
+      const pt2 = parsePt(p2);
+      const R = 6371000;
+      const dLat = ((pt2.lat - pt1.lat) * Math.PI) / 180;
+      const dLon = ((pt2.lon - pt1.lon) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((pt1.lat * Math.PI) / 180) *
+          Math.cos((pt2.lat * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const dist = R * c;
+      return dist <= Number(radius);
     },
   });
 

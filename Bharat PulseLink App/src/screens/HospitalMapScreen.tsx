@@ -79,57 +79,7 @@ export const HospitalMapScreen: React.FC = () => {
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [hasMovedFar, setHasMovedFar] = useState(false);
 
-  // Auto-acquire real device GPS on screen mount
-  useEffect(() => {
-    let isMounted = true;
-    const initGps = async () => {
-      try {
-        const perm = await LocationService.getPermissionStatus();
-        let granted = perm === 'GRANTED';
-        if (!granted && perm === 'NOT_REQUESTED') {
-          const req = await LocationService.requestPermission();
-          granted = req === 'GRANTED';
-        }
 
-        if (granted && isMounted) {
-          const servicesOn = await LocationService.isLocationServicesEnabled();
-          if (servicesOn) {
-            const { location: coords } = await LocationService.getCurrentDevicePosition({
-              timeoutMs: 8000,
-              highAccuracy: true,
-            });
-            if (coords && isMounted) {
-              const geoMeta = await LocationService.reverseGeocode(coords);
-              const gpsLoc: GeoLocationState = {
-                label: geoMeta.label || 'Current Location',
-                isGps: true,
-                latitude: coords.latitude,
-                longitude: coords.longitude,
-                city: geoMeta.city || 'Current Location',
-                district: geoMeta.district,
-                state: geoMeta.state,
-                pincode: geoMeta.pincode,
-              };
-              setLocation(gpsLoc);
-              setRegion({
-                latitude: coords.latitude,
-                longitude: coords.longitude,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[HOSPITAL_MAP] GPS auto-acquisition fallback:', err);
-      }
-    };
-
-    initGps();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Synchronize map camera region whenever location coordinates arrive or update
   useEffect(() => {

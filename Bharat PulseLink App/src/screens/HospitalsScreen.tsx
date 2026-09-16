@@ -57,6 +57,7 @@ export const HospitalsScreen: React.FC = () => {
     setLocation,
     hospitals,
     totalCount,
+    isOffline,
     isLoading,
     isRefetching,
     refetch,
@@ -202,14 +203,26 @@ export const HospitalsScreen: React.FC = () => {
             windowSize={5}
             removeClippedSubviews={true}
             ListHeaderComponent={
-              hospitals.length > 0 ? (
-                <View style={styles.resultsHeader}>
-                  <Text style={styles.resultsCountText}>
-                    Nearby Hospitals ({totalCount})
-                  </Text>
-                  <Text style={styles.rankingBadge}>Nearest First</Text>
-                </View>
-              ) : null
+              <View>
+                {isOffline && (
+                  <View style={styles.offlineNoticeBanner}>
+                    <Text style={styles.offlineNoticeText}>
+                      ⚠️ Live PostGIS server unreachable. Showing offline directory.
+                    </Text>
+                    <TouchableOpacity onPress={refetch} style={styles.offlineRetryBtn}>
+                      <Text style={styles.offlineRetryText}>Retry</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {hospitals.length > 0 && (
+                  <View style={styles.resultsHeader}>
+                    <Text style={styles.resultsCountText}>
+                      Nearby Hospitals ({totalCount})
+                    </Text>
+                    <Text style={styles.rankingBadge}>Nearest First</Text>
+                  </View>
+                )}
+              </View>
             }
             refreshControl={
               <RefreshControl
@@ -423,6 +436,36 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.2,
+  },
+  offlineNoticeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: spacing.sm,
+  },
+  offlineNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+    marginRight: 8,
+  },
+  offlineRetryBtn: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+  },
+  offlineRetryText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 

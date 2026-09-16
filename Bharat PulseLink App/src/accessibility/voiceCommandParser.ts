@@ -147,9 +147,11 @@ export class VoiceCommandParser {
 
     if (
       normalized.includes('open record') ||
+      normalized.includes('health record') ||
       normalized.includes('show record') ||
       normalized.includes('my record') ||
-      normalized.includes('medical record')
+      normalized.includes('medical record') ||
+      normalized.includes('records')
     ) {
       return {
         rawText,

@@ -153,6 +153,7 @@ export class HospitalRepository {
 
   /**
    * PostGIS Nearby Query on public.hospitals (Ingested MoHFW National Directory)
+   * or public.facilities (Canonical Schema).
    * Parameterized ST_DWithin and ST_Distance using GiST spatial index.
    */
   async findNearbyHospitals(params: {
@@ -179,35 +180,138 @@ export class HospitalRepository {
     const db = trx ?? this._knex;
     const { lat, lng, radius = 10000, limit = 20 } = params;
 
-    const userPoint = db.raw('ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography', [lng, lat]);
+    // Validate coordinates
+    if (
+      lat === undefined ||
+      lng === undefined ||
+      isNaN(lat) ||
+      isNaN(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return [];
+    }
 
-    const rows = await db('hospitals')
-      .select(
-        'id',
-        'hospital_name',
-        'state',
-        'district',
-        'pincode',
-        'hospital_category',
-        'hospital_care_type',
-        'specialties',
-        'facilities',
-        'emergency_services',
-        'website',
-        'latitude',
-        'longitude',
-        db.raw('ROUND(ST_Distance(location, ?)) AS distance_meters', [userPoint])
-      )
-      .where(function () {
-        this.where('coordinate_quality_status', 'VALID_COORDINATE').orWhereNull(
-          'coordinate_quality_status'
-        );
-      })
-      .andWhereRaw('ST_DWithin(location, ?, ?)', [userPoint, radius])
-      .orderBy('distance_meters', 'asc')
-      .limit(limit);
+    try {
+      // 1. Try querying public.hospitals if table exists
+      const hasHospitalsTable = await db.schema.hasTable('hospitals').catch(() => false);
+      if (hasHospitalsTable) {
+        const countRow = await db('hospitals').count('* as total').first().catch(() => null);
+        const count = Number((countRow as any)?.total || 0);
 
-    return rows;
+        if (count > 0) {
+          const hasQualityCol = await db.schema.hasColumn('hospitals', 'coordinate_quality_status').catch(() => false);
+
+          let query = db('hospitals')
+            .select(
+              'id',
+              'hospital_name',
+              'state',
+              'district',
+              'pincode',
+              'hospital_category',
+              'hospital_care_type',
+              'specialties',
+              'facilities',
+              'emergency_services',
+              'website',
+              'latitude',
+              'longitude',
+              db.raw(
+                'ROUND(ST_Distance(location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography)) AS distance_meters',
+                [lng, lat]
+              )
+            )
+            .whereNotNull('location')
+            .whereNotNull('latitude')
+            .whereNotNull('longitude')
+            .andWhereRaw(
+              'ST_DWithin(location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
+              [lng, lat, radius]
+            );
+
+          if (hasQualityCol) {
+            query = query.andWhere(function () {
+              this.where('coordinate_quality_status', 'VALID_COORDINATE').orWhereNull('coordinate_quality_status');
+            });
+          }
+
+          const rows = await query.orderBy('distance_meters', 'asc').limit(limit);
+          if (rows && rows.length > 0) {
+            return rows.map((r: any) => ({
+              id: String(r.id),
+              hospital_name: r.hospital_name || 'Hospital',
+              state: r.state || null,
+              district: r.district || null,
+              pincode: r.pincode || null,
+              hospital_category: r.hospital_category || null,
+              hospital_care_type: r.hospital_care_type || null,
+              specialties: r.specialties || null,
+              facilities: r.facilities || null,
+              emergency_services: r.emergency_services || null,
+              website: r.website || null,
+              latitude: Number(r.latitude),
+              longitude: Number(r.longitude),
+              distance_meters: Number(r.distance_meters || 0),
+            }));
+          }
+        }
+      }
+
+      // 2. Query canonical public.facilities table if hospitals is absent or has 0 results
+      const hasFacilitiesTable = await db.schema.hasTable('facilities').catch(() => false);
+      if (hasFacilitiesTable) {
+        const facRows = await db('facilities')
+          .select(
+            'id',
+            'name as hospital_name',
+            'locality as district',
+            'pincode',
+            'facility_type as hospital_category',
+            'ownership_type as hospital_care_type',
+            'latitude',
+            'longitude',
+            'emergency_available',
+            db.raw(
+              'ROUND(ST_Distance(location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography)) AS distance_meters',
+              [lng, lat]
+            )
+          )
+          .where('status', 'ACTIVE')
+          .whereNotNull('location')
+          .whereNotNull('latitude')
+          .whereNotNull('longitude')
+          .andWhereRaw(
+            'ST_DWithin(location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
+            [lng, lat, radius]
+          )
+          .orderBy('distance_meters', 'asc')
+          .limit(limit);
+
+        return (facRows || []).map((f: any) => ({
+          id: String(f.id),
+          hospital_name: f.hospital_name || 'Hospital',
+          state: null,
+          district: f.district || null,
+          pincode: f.pincode || null,
+          hospital_category: f.hospital_category || null,
+          hospital_care_type: f.hospital_care_type || null,
+          specialties: null,
+          facilities: null,
+          emergency_services: f.emergency_available ? '24x7 Emergency Services' : null,
+          website: null,
+          latitude: Number(f.latitude),
+          longitude: Number(f.longitude),
+          distance_meters: Number(f.distance_meters || 0),
+        }));
+      }
+
+      return [];
+    } catch (err) {
+      return [];
+    }
   }
 
   /**

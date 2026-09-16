@@ -67,42 +67,51 @@ export async function registerHospitalRoutes(
         });
       }
 
-      const results = await hospitalRepo.findNearbyHospitals({
-        lat: parsed.data.lat!,
-        lng: parsed.data.lng!,
-        radius: parsed.data.radius,
-        limit: parsed.data.limit,
-      });
-
-      const items = results.map((h: any) => ({
-        id: h.id,
-        name: h.hospital_name || h.hospitalName || h.name,
-        hospitalName: h.hospital_name || h.hospitalName || h.name,
-        state: h.state,
-        district: h.district,
-        pincode: h.pincode,
-        hospitalCategory: normalizeHealthcareAttribute(h.hospital_category || h.hospitalCategory),
-        hospitalCareType: normalizeHealthcareAttribute(h.hospital_care_type || h.hospitalCareType),
-        specialties: normalizeHealthcareAttribute(h.specialties),
-        facilities: normalizeHealthcareAttribute(h.facilities),
-        emergencyServices: normalizeHealthcareAttribute(h.emergency_services || h.emergencyServices),
-        website: normalizeHealthcareAttribute(h.website),
-        latitude: Number(h.latitude),
-        longitude: Number(h.longitude),
-        distanceMeters: Number(h.distance_meters ?? h.distanceMeters ?? 0),
-        distanceKm: Number(((Number(h.distance_meters ?? h.distanceMeters ?? 0)) / 1000).toFixed(1)),
-      }));
-
-      return reply.send({
-        data: items,
-        meta: {
-          latitude: parsed.data.lat,
-          longitude: parsed.data.lng,
-          radiusMeters: parsed.data.radius,
+      try {
+        const results = await hospitalRepo.findNearbyHospitals({
+          lat: parsed.data.lat!,
+          lng: parsed.data.lng!,
+          radius: parsed.data.radius,
           limit: parsed.data.limit,
-          count: items.length,
-        },
-      });
+        });
+
+        const items = results.map((h: any) => ({
+          id: h.id,
+          name: h.hospital_name || h.hospitalName || h.name,
+          hospitalName: h.hospital_name || h.hospitalName || h.name,
+          state: h.state,
+          district: h.district,
+          pincode: h.pincode,
+          hospitalCategory: normalizeHealthcareAttribute(h.hospital_category || h.hospitalCategory),
+          hospitalCareType: normalizeHealthcareAttribute(h.hospital_care_type || h.hospitalCareType),
+          specialties: normalizeHealthcareAttribute(h.specialties),
+          facilities: normalizeHealthcareAttribute(h.facilities),
+          emergencyServices: normalizeHealthcareAttribute(h.emergency_services || h.emergencyServices),
+          website: normalizeHealthcareAttribute(h.website),
+          latitude: Number(h.latitude),
+          longitude: Number(h.longitude),
+          distanceMeters: Number(h.distance_meters ?? h.distanceMeters ?? 0),
+          distanceKm: Number(((Number(h.distance_meters ?? h.distanceMeters ?? 0)) / 1000).toFixed(1)),
+        }));
+
+        return reply.send({
+          data: items,
+          meta: {
+            latitude: parsed.data.lat,
+            longitude: parsed.data.lng,
+            radiusMeters: parsed.data.radius,
+            limit: parsed.data.limit,
+            count: items.length,
+          },
+        });
+      } catch (err: any) {
+        request.log.error({ err }, 'Error in findNearbyHospitals');
+        return reply.status(500).send({
+          statusCode: 500,
+          error: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to retrieve nearby hospitals from database',
+        });
+      }
     },
   );
 

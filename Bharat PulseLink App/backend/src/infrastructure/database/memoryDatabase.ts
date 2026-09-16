@@ -42,6 +42,73 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
   });
 
   memDb.public.registerFunction({
+    name: 'st_makepoint',
+    args: [DataType.float, DataType.float],
+    returns: DataType.text,
+    implementation: (lon: number, lat: number) => `POINT(${lon} ${lat})`,
+  });
+
+  memDb.public.registerFunction({
+    name: 'st_setsrid',
+    args: [DataType.text, DataType.integer],
+    returns: DataType.text,
+    implementation: (geom: string, _srid: number) => geom,
+  });
+
+  memDb.public.registerFunction({
+    name: 'st_distance',
+    args: [DataType.text, DataType.text],
+    returns: DataType.float,
+    implementation: (p1: string, p2: string) => {
+      const parsePt = (ptStr: string) => {
+        const m = typeof ptStr === 'string' ? ptStr.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i) : null;
+        if (!m) return { lon: 0, lat: 0 };
+        return { lon: parseFloat(m[1]), lat: parseFloat(m[2]) };
+      };
+      const pt1 = parsePt(p1);
+      const pt2 = parsePt(p2);
+      const R = 6371000;
+      const dLat = ((pt2.lat - pt1.lat) * Math.PI) / 180;
+      const dLon = ((pt2.lon - pt1.lon) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((pt1.lat * Math.PI) / 180) *
+          Math.cos((pt2.lat * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return Math.round(R * c);
+    },
+  });
+
+  memDb.public.registerFunction({
+    name: 'st_dwithin',
+    args: [DataType.text, DataType.text, DataType.float],
+    returns: DataType.bool,
+    implementation: (p1: string, p2: string, radius: number) => {
+      const parsePt = (ptStr: string) => {
+        const m = typeof ptStr === 'string' ? ptStr.match(/POINT\s*\(\s*([\d.-]+)\s+([\d.-]+)\s*\)/i) : null;
+        if (!m) return { lon: 0, lat: 0 };
+        return { lon: parseFloat(m[1]), lat: parseFloat(m[2]) };
+      };
+      const pt1 = parsePt(p1);
+      const pt2 = parsePt(p2);
+      const R = 6371000;
+      const dLat = ((pt2.lat - pt1.lat) * Math.PI) / 180;
+      const dLon = ((pt2.lon - pt1.lon) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((pt1.lat * Math.PI) / 180) *
+          Math.cos((pt2.lat * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const dist = R * c;
+      return dist <= radius;
+    },
+  });
+
+  memDb.public.registerFunction({
     name: 'gen_random_uuid',
     returns: DataType.text,
     implementation: () => {

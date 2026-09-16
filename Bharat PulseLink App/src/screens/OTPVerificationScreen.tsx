@@ -108,6 +108,8 @@ export const OTPVerificationScreen: React.FC<Props> = ({ navigation, route }) =>
           navigation.navigate('BiometricSetup');
         } else if (nextRoute === 'SecurityPinSetup') {
           navigation.navigate('SecurityPinSetup');
+        } else if (nextRoute === 'ProfileSetup') {
+          navigation.navigate('ProfileSetup' as any);
         } else if (nextRoute === 'LocalLock') {
           navigation.navigate('LocalLock');
         }

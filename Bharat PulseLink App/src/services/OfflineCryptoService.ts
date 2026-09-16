@@ -269,9 +269,7 @@ export class OfflineCryptoService {
         return decryptedBuf.toString('utf8');
       }
     } catch (e: any) {
-      if (e.message?.includes('Unsupported state') || e.message?.includes('auth tag')) {
-        throw new Error('Integrity verification failed: ciphertext or auth tag tampered');
-      }
+      throw new Error(`Integrity verification failed: ${e?.message || 'ciphertext or auth tag tampered'}`);
     }
 
     // WebCrypto path

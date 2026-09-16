@@ -11,6 +11,8 @@ import ConsentService from '../services/ConsentService';
 import DeviceSecurityService from '../services/DeviceSecurityService';
 import SessionManager from '../services/sessionManager';
 
+import ProfileDraftService from '../services/ProfileDraftService';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export type AuthState =
@@ -25,12 +27,28 @@ export const RootNavigator: React.FC = () => {
 
   useEffect(() => {
     // Listen for real-time authentication changes (login / logout / token expiry)
-    const unsubscribe = SessionManager.subscribe((isAuthenticated) => {
+    const unsubscribe = SessionManager.subscribe(async (isAuthenticated) => {
       console.log(`[NAVIGATOR] AUTH_STATE_SYNC { isAuthenticated: ${isAuthenticated} }`);
       if (!isAuthenticated) {
         setAuthState('LANGUAGE_SELECTION');
-      } else {
-        setAuthState('AUTHENTICATED');
+        return;
+      }
+
+      // Authoritative onboarding completion verification
+      try {
+        const termsAccepted = await ConsentService.hasAcceptedLatestTerms();
+        const privacyAccepted = await ConsentService.hasAcceptedLatestPrivacy();
+        const draft = ProfileDraftService.getActiveMemoryDraft();
+        const isProfileDone = Boolean(draft?.isComplete);
+
+        if (termsAccepted && privacyAccepted && isProfileDone) {
+          setAuthState('AUTHENTICATED');
+        } else {
+          // Keep in pre-app state with AuthStack mounted for onboarding
+          setAuthState('LANGUAGE_SELECTION');
+        }
+      } catch {
+        setAuthState('LANGUAGE_SELECTION');
       }
     });
 
@@ -42,12 +60,19 @@ export const RootNavigator: React.FC = () => {
       console.log('[BOOT] JS_MOUNTED');
       console.log('[BOOT] NAVIGATOR_MOUNTED');
 
-      // 1. If user is already authenticated, go directly to AppStack
+      // 1. If user is already authenticated, check if all onboarding steps are complete
       if (isAuthenticated) {
-        console.log('[BOOT] ONBOARDING_COMPLETED=true');
-        console.log('[BOOT] ROUTE_RESOLVED=AppStack');
-        setAuthState('AUTHENTICATED');
-        return;
+        const termsAccepted = await ConsentService.hasAcceptedLatestTerms();
+        const privacyAccepted = await ConsentService.hasAcceptedLatestPrivacy();
+        const draft = await ProfileDraftService.loadDraft('user_patient_primary');
+        const isProfileDone = Boolean(draft?.isComplete);
+
+        if (termsAccepted && privacyAccepted && isProfileDone) {
+          console.log('[BOOT] ONBOARDING_COMPLETED=true');
+          console.log('[BOOT] ROUTE_RESOLVED=AppStack');
+          setAuthState('AUTHENTICATED');
+          return;
+        }
       }
 
       // Guarantee fresh user onboarding flow (Onboarding 1-4) on unauthenticated launch

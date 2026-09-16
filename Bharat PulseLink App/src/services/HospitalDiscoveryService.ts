@@ -555,32 +555,52 @@ export class HospitalDiscoveryService {
   }
 
   public static async getHospitalById(hospitalId: string): Promise<HospitalSummaryItem | null> {
+    const fallback = NATIONAL_HOSPITALS_DIRECTORY.find((h) => h.id === hospitalId);
     try {
       const response = await api.get(`/hospitals/${hospitalId}`);
       if (response.data) {
         const d = response.data;
+        const rawOwnership = String(d.ownershipType || d.hospitalCategory || d.hospitalCareType || '');
+        const ownership =
+          /gov|public/i.test(rawOwnership)
+            ? 'GOVERNMENT'
+            : /private|pvt|trust/i.test(rawOwnership)
+            ? 'PRIVATE'
+            : fallback?.ownership || 'UNKNOWN';
+
         return {
           id: d.id,
-          name: d.name || d.displayName || d.hospitalName,
-          distanceKm: d.distanceKm || 0,
-          ownership: d.ownershipType || 'UNKNOWN',
-          category: d.facilityType || 'GENERAL',
-          is24x7: d.emergencyAvailable || false,
-          operatingHoursText: d.emergencyAvailable ? '24x7 Emergency Services' : 'Open Regular Hours',
-          address: d.address?.line1 || '',
-          city: d.address?.locality || '',
-          state: d.address?.state || '',
-          pincode: d.address?.pincode || '',
-          latitude: d.coordinates?.latitude,
-          longitude: d.coordinates?.longitude,
-          services: (d.services || []).map((s: any) => s.name || s.code),
+          name: d.name || d.displayName || d.hospitalName || fallback?.name,
+          distanceKm: d.distanceKm ?? fallback?.distanceKm ?? 0,
+          ownership,
+          category: d.facilityType || fallback?.category || 'GENERAL',
+          is24x7: d.emergencyAvailable ?? fallback?.is24x7 ?? false,
+          operatingHoursText: (d.emergencyAvailable ?? fallback?.is24x7)
+            ? '24x7 Emergency Services'
+            : fallback?.operatingHoursText || 'Open Regular Hours',
+          address: d.address?.line1 || fallback?.address || '',
+          city: d.address?.locality || fallback?.city || '',
+          state: d.address?.state || fallback?.state || '',
+          pincode: d.address?.pincode || fallback?.pincode || '',
+          latitude: d.coordinates?.latitude ?? fallback?.latitude,
+          longitude: d.coordinates?.longitude ?? fallback?.longitude,
+          services:
+            d.services && d.services.length > 0
+              ? (d.services || []).map((s: any) => s.name || s.code || s)
+              : fallback?.services || ['General Healthcare'],
           verified: true,
-          sourceLabel: 'MoHFW National Health Directory',
+          sourceLabel: fallback?.sourceLabel || 'MoHFW National Health Directory',
+          contactPhone: d.contactPhone || fallback?.contactPhone,
+          emergencyPhone: d.emergencyPhone || fallback?.emergencyPhone,
+          totalBeds: d.totalBeds ?? fallback?.totalBeds,
+          availableBeds: d.availableBeds ?? fallback?.availableBeds,
+          totalDoctors: d.totalDoctors ?? fallback?.totalDoctors,
+          rating: d.rating ?? fallback?.rating,
+          averageWaitTimeMinutes: d.averageWaitTimeMinutes ?? fallback?.averageWaitTimeMinutes,
         };
       }
     } catch {}
-    const found = NATIONAL_HOSPITALS_DIRECTORY.find((h) => h.id === hospitalId);
-    return found || null;
+    return fallback || null;
   }
 }
 

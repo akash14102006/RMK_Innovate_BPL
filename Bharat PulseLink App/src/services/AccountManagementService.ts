@@ -25,6 +25,8 @@ import {
 } from '../types/account';
 import SecureStoreService from './secureStore';
 
+import ProfileDraftService from './ProfileDraftService';
+
 const STORAGE_KEYS = {
   PROFILE: 'bpl_user_profile_v1',
   EMERGENCY_CONTACTS: 'bpl_emergency_contacts_v1',
@@ -273,6 +275,28 @@ export class AccountManagementService {
   // ── 3. Profile ──
   public static async getUserProfile(): Promise<UserAccountProfile> {
     try {
+      const draft = ProfileDraftService.getActiveMemoryDraft();
+      if (draft && draft.basic?.fullName) {
+        return {
+          userId: draft.userId || 'usr_patient_primary',
+          fullName: draft.basic.fullName,
+          abhaId: draft.identification?.aadhaarNumberMasked || '91-2048-9182-4410',
+          abhaAddress: `${draft.basic.fullName.toLowerCase().replace(/\s+/g, '.')}@abdm`,
+          dateOfBirth: draft.basic.dateOfBirth || '1996-05-14',
+          gender: draft.basic.gender === 'FEMALE' ? 'FEMALE' : draft.basic.gender === 'NON_BINARY' ? 'OTHER' : 'MALE',
+          bloodGroup: draft.identification?.bloodGroup || 'O+',
+          primaryPhone: draft.contact?.primaryPhone || '+91 98765 43210',
+          email: draft.contact?.email || 'patient@pulsemail.in',
+          aadhaarMasked: draft.identification?.aadhaarNumberMasked || 'XXXX-XXXX-8921',
+          isAadhaarVerified: true,
+          addressLine1: draft.contact?.addressLine1 || 'Anna Nagar',
+          city: draft.contact?.city || 'Chennai',
+          state: draft.contact?.state || 'Tamil Nadu',
+          pincode: draft.contact?.pincode || '600040',
+          profileCompletionPercentage: draft.isComplete ? 100 : 80,
+        };
+      }
+
       const raw = await SecureStoreService.get(STORAGE_KEYS.PROFILE);
       if (raw) return JSON.parse(raw);
       await SecureStoreService.set(STORAGE_KEYS.PROFILE, JSON.stringify(INITIAL_PROFILE));

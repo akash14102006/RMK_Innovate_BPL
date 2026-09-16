@@ -1,12 +1,14 @@
 import { CanonicalIdentity } from './types';
 import ConsentService from '../services/ConsentService';
 import DeviceSecurityService from '../services/DeviceSecurityService';
+import ProfileDraftService from '../services/ProfileDraftService';
 
 export type ResolvedRoute =
   | 'TermsConditions'
   | 'PrivacyPolicy'
   | 'BiometricSetup'
   | 'SecurityPinSetup'
+  | 'ProfileSetup'
   | 'LocalLock'
   | 'AppStack';
 
@@ -25,6 +27,11 @@ export class AuthRouteResolver {
     const secConfig = await DeviceSecurityService.getConfig();
     if (!secConfig.biometricEnabled && !secConfig.pinConfigured) {
       return 'BiometricSetup';
+    }
+
+    const draft = await ProfileDraftService.loadDraft(identity?.id || 'user_patient_primary');
+    if (!draft || !draft.isComplete) {
+      return 'ProfileSetup';
     }
 
     if (DeviceSecurityService.isAppLocked()) {

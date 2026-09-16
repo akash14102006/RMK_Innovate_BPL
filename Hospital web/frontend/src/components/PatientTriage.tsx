@@ -479,12 +479,14 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
         });
 
         const effectiveName = patient.fullName || patient.name;
+        const effectivePatientId = patient.patientId || patient.exchangeId || patient.bplExchangeId;
         const effectiveGender = patient.gender
             ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase())
             : undefined;
 
         setFormData(prev => ({
             ...prev,
+            patientId: effectivePatientId ? String(effectivePatientId) : prev.patientId,
             name: (effectiveName && effectiveName !== 'Not recorded') ? effectiveName : prev.name,
             age: (patient.age && patient.age !== 'Not recorded') ? String(patient.age) : prev.age,
             gender: (effectiveGender && effectiveGender !== 'Not recorded') ? effectiveGender : prev.gender,

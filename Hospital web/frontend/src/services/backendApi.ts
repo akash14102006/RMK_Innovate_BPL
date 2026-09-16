@@ -27,7 +27,10 @@ const callApi = async <T = any>(endpoint: string, options: RequestInit = {}): Pr
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || `API request failed with status ${response.status}`);
+        const error = new Error(data.error || `API request failed with status ${response.status}`) as any;
+        error.code = data.code;
+        error.status = response.status;
+        throw error;
     }
 
     return data;

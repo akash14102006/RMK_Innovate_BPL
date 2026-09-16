@@ -295,15 +295,37 @@ export function checkAndRecordReplay(sessionId: string, expiresAtEpoch: number):
   }
 }
 
-// ── QR Classification ─────────────────────────────────────────────────────────
+// ── QR Canonical String Extraction & Classification ──────────────────────────
+
+/**
+ * Extracts clean protocol URI from scanned QR string, stripping any scanner prefixes.
+ */
+export function extractCanonicalQRString(qrString: string): string {
+  if (!qrString || typeof qrString !== 'string') return '';
+  const trimmed = qrString.trim();
+
+  // Search for offline protocol prefix (tolerates iconbploff://, qr:bploff://, etc.)
+  const offIndex = trimmed.indexOf('bploff://');
+  if (offIndex !== -1) {
+    return trimmed.substring(offIndex);
+  }
+
+  // Search for online protocol prefix (tolerates iconbplqr://, qr:bplqr://, etc.)
+  const qrIndex = trimmed.indexOf('bplqr://');
+  if (qrIndex !== -1) {
+    return trimmed.substring(qrIndex);
+  }
+
+  return trimmed;
+}
 
 export function classifyQRPayload(qrString: string): QRPayloadType {
   if (!qrString || typeof qrString !== 'string') return 'UNKNOWN';
-  const trimmed = qrString.trim();
-  if (trimmed.startsWith('bploff://')) return 'OFFLINE_SECURE_QR';
-  if (trimmed.startsWith('bplqr://')) return 'ONLINE_SECURE_QR';
+  const canonical = extractCanonicalQRString(qrString);
+  if (canonical.startsWith('bploff://')) return 'OFFLINE_SECURE_QR';
+  if (canonical.startsWith('bplqr://')) return 'ONLINE_SECURE_QR';
   // Fallback: If it's a 32+ hex/alphanumeric string without scheme, treat as online token
-  if (/^[A-Za-z0-9_\-]{32,}$/.test(trimmed)) return 'ONLINE_SECURE_QR';
+  if (/^[A-Za-z0-9_\-]{32,}$/.test(canonical)) return 'ONLINE_SECURE_QR';
   return 'UNKNOWN';
 }
 
@@ -314,18 +336,18 @@ export function parseOfflineEnvelope(qrString: string): OfflineQREnvelope {
     throw new Error('Invalid offline QR code: string is empty');
   }
 
-  const trimmed = qrString.trim();
-  if (!trimmed.startsWith('bploff://')) {
+  const canonical = extractCanonicalQRString(qrString);
+  if (!canonical.startsWith('bploff://')) {
     throw new Error('Not a valid Bharat PulseLink offline QR format');
   }
 
   // Handle format: bploff://v1?data=<base64url> or bploff://?data=<base64url>
-  const queryIndex = trimmed.indexOf('?data=');
+  const queryIndex = canonical.indexOf('?data=');
   if (queryIndex === -1) {
     throw new Error('Missing data parameter in offline QR envelope');
   }
 
-  const dataPart = trimmed.substring(queryIndex + 6);
+  const dataPart = canonical.substring(queryIndex + 6);
   if (!dataPart) {
     throw new Error('Empty envelope data in offline QR');
   }
@@ -348,47 +370,72 @@ export function parseOfflineEnvelope(qrString: string): OfflineQREnvelope {
   }
 }
 
-// ── Canonical Patient Mapping ─────────────────────────────────────────────────
+// ── Canonical Patient Mapping & Normalization ─────────────────────────────────
 
-export function mapQRPatientToHospitalPatient(
-  rawPayload: any,
-  envelope?: OfflineQREnvelope
+/**
+ * Authoritative Canonical Patient Normalizer
+ * Unifies both ONLINE and OFFLINE resolved data into ONE consistent schema.
+ */
+export function normalizePatientExchange(
+  rawData: any,
+  mode: 'ONLINE_SECURE_QR' | 'OFFLINE_SECURE_QR' = 'OFFLINE_SECURE_QR',
+  metadata?: {
+    exchangeId?: string;
+    sessionId?: string;
+    authorizedScopes?: string[];
+  }
 ): CanonicalHospitalPatient {
-  // Support both enveloped structure and flattened fields
-  const profile = rawPayload.profile || rawPayload;
-  const emergency = rawPayload.emergencyContact || null;
+  if (!rawData) {
+    throw new Error('Cannot normalize null or undefined patient payload');
+  }
 
-  // 1. Core Demographics
+  // Support enveloped, backend response, or flattened shapes
+  const profile = rawData.patient || rawData.profile || rawData;
+  const emergencyRaw = profile.emergencyContact || rawData.emergencyContact || null;
+
+  // 1. Full Name
   const fullName = profile.fullName || profile.name || profile.patientName || 'Not recorded';
-  const rawAge = profile.age;
+
+  // 2. Age
   let age = 'Not recorded';
-  if (rawAge !== undefined && rawAge !== null && rawAge !== '') {
-    age = String(rawAge);
+  if (profile.age !== undefined && profile.age !== null && profile.age !== '') {
+    age = String(profile.age);
   } else if (profile.dateOfBirth) {
     try {
       const birthYear = new Date(profile.dateOfBirth).getFullYear();
       if (!isNaN(birthYear)) {
-        age = String(new Date().getFullYear() - birthYear);
+        age = String(Math.max(1, new Date().getFullYear() - birthYear));
       }
     } catch {
       age = 'Not recorded';
     }
   }
 
+  // 3. Gender
   const rawGender = profile.gender || profile.sex || 'Not recorded';
   const gender =
     rawGender !== 'Not recorded'
       ? rawGender.charAt(0).toUpperCase() + rawGender.slice(1).toLowerCase()
       : 'Not recorded';
 
+  // 4. Contact Phone
   const phone = profile.primaryPhone || profile.phone || profile.contact || 'Not recorded';
+
+  // 5. Blood Group
   const bloodGroup = profile.bloodGroup || profile.bloodType || 'Not recorded';
+
+  // 6. ABHA ID
   const abhaId = profile.abhaId || profile.healthId || '';
 
-  // 2. Allergies
-  const rawAllergies = Array.isArray(rawPayload.allergies) ? rawPayload.allergies : [];
+  // 7. Allergies Array
+  const rawAllergies = Array.isArray(rawData.allergies)
+    ? rawData.allergies
+    : Array.isArray(profile.allergies)
+    ? profile.allergies
+    : [];
   const allergies = rawAllergies
     .map((a: any) => {
+      if (!a) return '';
       if (typeof a === 'string') return a.trim();
       const sub = a.substance || a.allergen || a.name || '';
       const sev = a.severity ? ` (${a.severity})` : '';
@@ -396,10 +443,15 @@ export function mapQRPatientToHospitalPatient(
     })
     .filter(Boolean);
 
-  // 3. Current Medications
-  const rawMedications = Array.isArray(rawPayload.medications) ? rawPayload.medications : [];
+  // 8. Medications Array
+  const rawMedications = Array.isArray(rawData.medications)
+    ? rawData.medications
+    : Array.isArray(profile.medications)
+    ? profile.medications
+    : [];
   const medications = rawMedications
     .map((m: any) => {
+      if (!m) return '';
       if (typeof m === 'string') return m.trim();
       const name = m.medicationName || m.name || '';
       const dose = m.dosage ? ` ${m.dosage}` : '';
@@ -408,14 +460,19 @@ export function mapQRPatientToHospitalPatient(
     })
     .filter(Boolean);
 
-  // 4. Chronic Conditions
-  const rawConditions = Array.isArray(rawPayload.conditions)
-    ? rawPayload.conditions
-    : Array.isArray(rawPayload.chronicConditions)
-    ? rawPayload.chronicConditions
+  // 9. Chronic Conditions Array
+  const rawConditions = Array.isArray(rawData.conditions)
+    ? rawData.conditions
+    : Array.isArray(rawData.chronicConditions)
+    ? rawData.chronicConditions
+    : Array.isArray(profile.conditions)
+    ? profile.conditions
+    : Array.isArray(profile.chronicConditions)
+    ? profile.chronicConditions
     : [];
   const chronicConditions = rawConditions
     .map((c: any) => {
+      if (!c) return '';
       if (typeof c === 'string') return c.trim();
       const name = c.conditionName || c.name || c.condition_name || '';
       const status = c.status ? ` (${c.status})` : '';
@@ -423,33 +480,57 @@ export function mapQRPatientToHospitalPatient(
     })
     .filter(Boolean);
 
-  // 5. Last Hospital Visit
+  // 10. Last Hospital Visit
   let lastVisit = 'Not recorded';
-  if (rawPayload.lastVisit && typeof rawPayload.lastVisit === 'string') {
-    lastVisit = rawPayload.lastVisit;
-  } else if (Array.isArray(rawPayload.surgeries) && rawPayload.surgeries.length > 0) {
-    const s = rawPayload.surgeries[0];
+  if (rawData.lastVisit && typeof rawData.lastVisit === 'string') {
+    lastVisit = rawData.lastVisit;
+  } else if (profile.lastVisit && typeof profile.lastVisit === 'string') {
+    lastVisit = profile.lastVisit;
+  } else if (Array.isArray(profile.surgeries) && profile.surgeries.length > 0) {
+    const s = profile.surgeries[0];
     lastVisit = `${s.yearOrDate || 'Recent'} - ${s.procedureName || 'Procedure'}${
       s.hospitalName ? ` (${s.hospitalName})` : ''
     }`;
-  } else if (rawPayload.lastEncounter) {
-    const enc = rawPayload.lastEncounter;
+  } else if (Array.isArray(rawData.surgeries) && rawData.surgeries.length > 0) {
+    const s = rawData.surgeries[0];
+    lastVisit = `${s.yearOrDate || 'Recent'} - ${s.procedureName || 'Procedure'}${
+      s.hospitalName ? ` (${s.hospitalName})` : ''
+    }`;
+  } else if (rawData.lastEncounter) {
+    const enc = rawData.lastEncounter;
     lastVisit = `${enc.date || 'Recent'} - ${enc.facility || 'Encounter'}`;
   }
 
-  // 6. Emergency Contact
+  // 11. Emergency Contact
   let mappedEmergency: { name: string; relationship: string; phone: string } | null = null;
-  if (emergency) {
+  if (emergencyRaw) {
     mappedEmergency = {
-      name: emergency.name || emergency.contactName || 'Emergency Contact',
-      relationship: emergency.relationship || 'Caregiver',
-      phone: emergency.phone || emergency.primaryPhone || 'Not recorded',
+      name: emergencyRaw.name || emergencyRaw.contactName || 'Emergency Contact',
+      relationship: emergencyRaw.relationship || 'Caregiver',
+      phone: emergencyRaw.phone || emergencyRaw.primaryPhone || 'Not recorded',
     };
   }
 
-  const patientId = profile.patientId || rawPayload.patientId || (envelope ? envelope.pid : '');
-  const exchangeId = envelope ? envelope.sid : `bpl_${Date.now()}`;
-  const scopes = envelope?.scopes || envelope?.sc || [];
+  const exchangeId =
+    metadata?.exchangeId ||
+    metadata?.sessionId ||
+    rawData.exchangeId ||
+    rawData.sessionId ||
+    `bpl_${Date.now()}`;
+
+  const patientId =
+    profile.patientId ||
+    rawData.patientId ||
+    rawData.pid ||
+    exchangeId;
+
+  const scopes =
+    metadata?.authorizedScopes ||
+    rawData.authorizedScopes ||
+    rawData.consentedScopes ||
+    rawData.scopes ||
+    rawData.sc ||
+    [];
 
   return {
     patientId,
@@ -471,8 +552,22 @@ export function mapQRPatientToHospitalPatient(
     exchangeId,
     bplVerified: true,
     verifiedAt: new Date().toLocaleTimeString(),
+    mode,
   };
 }
+
+export function mapQRPatientToHospitalPatient(
+  rawPayload: any,
+  envelope?: OfflineQREnvelope
+): CanonicalHospitalPatient {
+  return normalizePatientExchange(rawPayload, 'OFFLINE_SECURE_QR', {
+    exchangeId: envelope?.sid,
+    sessionId: envelope?.sid,
+    authorizedScopes: envelope?.scopes || envelope?.sc,
+  });
+}
+
+
 
 // ── Local Offline Resolver Core (ZERO Network Calls) ─────────────────────────
 

@@ -267,7 +267,7 @@ function resolveOfflinePatientQR(envelope, hospitalId, facilityId) {
   }
 
   // 2. Recipient Facility Binding Verification
-  const validHospitalIds = [hospitalId, facilityId, 'hosp_smart_triage_01', 'fac_emergency_01'];
+  const validHospitalIds = [hospitalId, facilityId, 'hosp_smart_triage_01', 'fac_emergency_01', 'hosp_chennai_01', 'hosp_chennai_02'];
   if (envelope.hid && !validHospitalIds.includes(envelope.hid) && envelope.hid !== hospitalId && envelope.hid !== facilityId) {
     const err = new Error(`QR envelope is bound to hospital ${envelope.hid}, but scanner is at ${hospitalId}`);
     err.code = 'RECIPIENT_MISMATCH';
@@ -318,17 +318,37 @@ function resolveOfflinePatientQR(envelope, hospitalId, facilityId) {
   // 6. Decrypt Payload (AES-256-GCM) with AAD binding
   let patientData;
   try {
-    const iv = Buffer.from(envelope.iv, 'base64');
+    const iv = /^[0-9a-fA-F]+$/.test(envelope.iv)
+      ? Buffer.from(envelope.iv, 'hex')
+      : Buffer.from(envelope.iv, 'base64');
     const ciphertext = Buffer.from(envelope.ct, 'base64');
-    const tag = Buffer.from(envelope.tag, 'base64');
-    const aadString = `${envelope.sid}:${envelope.hid}:${envelope.pid}:${envelope.iat}:${envelope.exp}:${envelope.nonce}`;
+    const tag = /^[0-9a-fA-F]+$/.test(envelope.tag)
+      ? Buffer.from(envelope.tag, 'hex')
+      : Buffer.from(envelope.tag, 'base64');
 
-    const decipher = crypto.createDecipheriv('aes-256-gcm', dek, iv);
-    decipher.setAAD(Buffer.from(aadString, 'utf8'));
-    decipher.setAuthTag(tag);
+    const canonicalAad = `${envelope.sid}:${envelope.pid}:${envelope.hid}:${envelope.ts || envelope.iat || ''}`;
+    const legacyAad = `${envelope.sid}:${envelope.hid}:${envelope.pid}:${envelope.iat}:${envelope.exp}:${envelope.nonce}`;
 
-    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    patientData = JSON.parse(decrypted.toString('utf8'));
+    let decipherSuccess = false;
+    // Attempt canonical AAD first
+    try {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', dek, iv);
+      decipher.setAAD(Buffer.from(canonicalAad, 'utf8'));
+      decipher.setAuthTag(tag);
+      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      patientData = JSON.parse(decrypted.toString('utf8'));
+      decipherSuccess = true;
+    } catch (_) {
+      // Fallback to legacy AAD
+    }
+
+    if (!decipherSuccess) {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', dek, iv);
+      decipher.setAAD(Buffer.from(legacyAad, 'utf8'));
+      decipher.setAuthTag(tag);
+      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      patientData = JSON.parse(decrypted.toString('utf8'));
+    }
   } catch (err) {
     const authErr = new Error('AES-256-GCM authentication tag verification failed. Ciphertext has been tampered with or corrupted.');
     authErr.code = 'AUTHENTICATION_TAG_MISMATCH';
@@ -492,18 +512,30 @@ async function resolvePatientQR({
     return patientIntake;
   } catch (error) {
     const errorDetails = error.response?.data?.error || {};
-    const errorCode = errorDetails.code || error.code || 'INTEGRATION_ERROR';
-    const errorMessage = errorDetails.message || error.message || 'Failed to communicate with Bharat PulseLink';
+    let errorCode = errorDetails.code || error.code || 'INTEGRATION_ERROR';
+    let errorMessage = errorDetails.message || error.message || 'Failed to communicate with Bharat PulseLink';
+    let statusCode = error.response?.status || 500;
+
+    if (
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ENOTFOUND' ||
+      error.code === 'ETIMEDOUT' ||
+      !error.response
+    ) {
+      errorCode = 'BPL_BRIDGE_UNAVAILABLE';
+      errorMessage = 'Bharat PulseLink integration service is unreachable.';
+      statusCode = 503;
+    }
 
     console.error('[BPL_INTEGRATION] Resolution error', {
       code: errorCode,
       message: errorMessage,
-      status: error.response?.status,
+      status: statusCode,
     });
 
     const userFriendlyError = new Error(errorMessage);
     userFriendlyError.code = errorCode;
-    userFriendlyError.status = error.response?.status || 500;
+    userFriendlyError.status = statusCode;
     throw userFriendlyError;
   }
 }

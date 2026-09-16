@@ -30,7 +30,13 @@ import { toast } from 'sonner';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { backendApi } from '../services/backendApi';
 
-import { classifyQRPayload, resolveOfflineQRLocally, CanonicalHospitalPatient } from '../services/offlineQRResolver';
+import {
+  classifyQRPayload,
+  resolveOfflineQRLocally,
+  normalizePatientExchange,
+  extractCanonicalQRString,
+  CanonicalHospitalPatient,
+} from '../services/offlineQRResolver';
 
 interface BPLQRScannerModalProps {
   isOpen: boolean;
@@ -185,8 +191,8 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
 
   // Main QR resolution handler: CLASSIFIES QR PAYLOAD BEFORE ANY NETWORK REQUEST
   const handleResolveQR = async (payloadToResolve?: string) => {
-    const payload = (payloadToResolve || qrInput).trim();
-    if (!payload) {
+    const raw = (payloadToResolve || qrInput).trim();
+    if (!raw) {
       setError('Please enter or scan a Bharat PulseLink QR payload');
       return;
     }
@@ -201,58 +207,93 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
 
     // Step 1: Pre-classify QR payload format BEFORE making any network call
     setWorkflowState('IDENTIFYING');
-    const qrType = classifyQRPayload(payload);
+    const qrType = classifyQRPayload(raw);
+    const cleanPayload = extractCanonicalQRString(raw);
 
+    // Development diagnostic telemetry (Never log PHI)
+    console.log(`[QR] format=${cleanPayload.substring(0, 10)} mode=${qrType}`);
+
+    // =========================================================================
+    // GUARD: UNKNOWN / UNSUPPORTED QR (ZERO NETWORK CALLS)
+    // =========================================================================
+    if (qrType === 'UNKNOWN') {
+      console.log('[QR] result=UNSUPPORTED_QR network=DISABLED');
+      setWorkflowState('SCANNING');
+      setIsLoading(false);
+      const errorMsg = 'This QR code is not a supported Bharat PulseLink patient QR.';
+      setError(errorMsg);
+      toast.error(errorMsg);
+      if (scanMode === 'camera') {
+        setTimeout(() => {
+          startCameraScanner();
+        }, 1500);
+      }
+      return;
+    }
+
+    // =========================================================================
+    // PATH 1: OFFLINE SECURE QR FLOW (bploff://)
+    // CRITICAL ARCHITECTURE RULE: ZERO NETWORK CALLS
+    // No fetch(), no axios(), no localhost, no 127.0.0.1, no 3001, no 8085
+    // =========================================================================
     if (qrType === 'OFFLINE_SECURE_QR') {
-      // =========================================================================
-      // CRITICAL ARCHITECTURE RULE: LOCAL OFFLINE FLOW ONLY
-      // No fetch(), no axios(), no localhost, no 127.0.0.1, no cloud API
-      // =========================================================================
+      console.log('[QR] mode=OFFLINE_SECURE_QR network=DISABLED stage=LOCAL_CRYPTO');
       setWorkflowState('OFFLINE_VERIFICATION');
 
       try {
         setOfflineStep('QR detected');
-        await new Promise((r) => setTimeout(r, 60));
+        await new Promise((r) => setTimeout(r, 40));
 
         setOfflineStep('Verifying signature');
-        await new Promise((r) => setTimeout(r, 60));
+        await new Promise((r) => setTimeout(r, 40));
 
         setOfflineStep('Checking expiry');
-        await new Promise((r) => setTimeout(r, 60));
+        await new Promise((r) => setTimeout(r, 40));
 
         setOfflineStep('Checking hospital');
-        await new Promise((r) => setTimeout(r, 60));
+        await new Promise((r) => setTimeout(r, 40));
 
         setOfflineStep('Checking replay');
-        await new Promise((r) => setTimeout(r, 60));
+        await new Promise((r) => setTimeout(r, 40));
 
         setOfflineStep('Decrypting patient data');
-        const offlineResult = await resolveOfflineQRLocally(payload);
+        const offlineResult = await resolveOfflineQRLocally(cleanPayload);
 
         setOfflineStep('Patient verified');
         setWorkflowState('PATIENT_VERIFIED');
 
+        const canonicalPatient = normalizePatientExchange(
+          offlineResult.patient,
+          'OFFLINE_SECURE_QR',
+          {
+            exchangeId: offlineResult.security.sessionId,
+            sessionId: offlineResult.security.sessionId,
+            authorizedScopes: offlineResult.patient.consentedScopes,
+          }
+        );
+
         setResolvedData({
           mode: 'OFFLINE_SECURE_QR',
           exchangeId: offlineResult.security.sessionId,
-          patient: offlineResult.patient,
+          patient: canonicalPatient,
           security: offlineResult.security,
         });
 
-        toast.success(`Verified Locally: ${offlineResult.patient.fullName}`);
+        console.log('[QR] mode=OFFLINE_SECURE_QR stage=DECRYPT result=SUCCESS');
+        toast.success(`Verified Locally: ${canonicalPatient.fullName}`);
       } catch (err: any) {
         console.error('[BPL OFFLINE QR] Local verification error:', err);
         setWorkflowState('SCANNING');
         let errorMsg = err.message || 'Unable to verify this patient QR.';
 
         if (errorMsg.includes('expired')) {
-          errorMsg = 'This QR code has expired. Please ask the patient to generate a fresh QR.';
+          errorMsg = 'This secure QR has expired. Please generate a new QR.';
         } else if (errorMsg.includes('already') || errorMsg.includes('replay')) {
-          errorMsg = 'This QR code was already consumed. Single-use replay protection is active.';
-        } else if (errorMsg.includes('facility') || errorMsg.includes('mismatch')) {
-          errorMsg = 'This QR code was generated for another hospital and cannot be decrypted here.';
-        } else if (errorMsg.includes('tampered') || errorMsg.includes('Integrity')) {
-          errorMsg = 'Integrity check failed: QR payload was altered or corrupted.';
+          errorMsg = 'This QR has already been used.';
+        } else if (errorMsg.includes('facility') || errorMsg.includes('mismatch') || errorMsg.includes('Access Denied')) {
+          errorMsg = 'This QR is not bound to this hospital.';
+        } else if (errorMsg.includes('tampered') || errorMsg.includes('Integrity') || errorMsg.includes('signature')) {
+          errorMsg = 'Secure patient verification failed.';
         }
 
         setError(errorMsg);
@@ -270,22 +311,35 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
     }
 
     // =========================================================================
-    // ONLINE SECURE QR FLOW (bplqr://)
-    // Preserves existing secure online flow with friendly error masking
+    // PATH 2: ONLINE SECURE QR FLOW (bplqr://)
+    // Connects through Hospital Backend -> BPL Integration Gateway
     // =========================================================================
+    console.log('[QR] mode=ONLINE_SECURE_QR target=HospitalBackend stage=SESSION_RESOLVE');
     setWorkflowState('ONLINE_RESOLUTION');
 
     try {
       toast.info('Connecting to Bharat PulseLink Security Gateway...');
-      const response = await backendApi.resolveBPLQR(payload);
+      const response = await backendApi.resolveBPLQR(cleanPayload);
 
       if (response.success && response.data) {
+        console.log('[QR] mode=ONLINE_SECURE_QR target=HospitalBackend stage=BPL_BRIDGE result=SUCCESS');
         setWorkflowState('PATIENT_VERIFIED');
+
+        const canonicalPatient = normalizePatientExchange(
+          response.data,
+          'ONLINE_SECURE_QR',
+          {
+            exchangeId: response.data.exchangeId,
+            authorizedScopes: response.data.authorizedScopes,
+          }
+        );
+
         setResolvedData({
           ...response.data,
+          patient: canonicalPatient,
           mode: 'ONLINE_SECURE_QR',
         });
-        toast.success(`Verified: ${response.data.patient?.fullName || 'Patient'}`);
+        toast.success(`Verified: ${canonicalPatient.fullName}`);
       } else {
         throw new Error('Unsuccessful verification from Bharat PulseLink');
       }
@@ -293,26 +347,35 @@ export const BPLQRScannerModal: React.FC<BPLQRScannerModalProps> = ({
       console.error('[BPL ONLINE QR SCAN] Error:', err);
       setWorkflowState('SCANNING');
       const rawError = String(err?.message || err || '');
-      let errorMsg = 'Unable to verify this patient QR. Please retry or use the offline QR.';
+      let errorMsg = 'Unable to verify this patient QR. Please retry or ask patient for an Offline QR.';
 
-      // Never expose raw technical errors like ECONNREFUSED or 127.0.0.1 to hospital staff
+      // Never expose technical strings like ECONNREFUSED, 127.0.0.1, or stack traces
       if (
         rawError.includes('ECONNREFUSED') ||
-        rawError.includes('127.0.0.1') ||
         rawError.includes('8085') ||
+        rawError.includes('127.0.0.1') ||
+        rawError.includes('BPL_BRIDGE_UNAVAILABLE') ||
+        rawError.includes('Integration gateway') ||
+        rawError.includes('Failed to communicate with Bharat PulseLink')
+      ) {
+        errorMsg = 'Bharat PulseLink integration service is unavailable. Please ask patient to switch to an Offline QR.';
+      } else if (
+        rawError.includes('Failed to fetch') ||
         rawError.includes('Network Error') ||
         rawError.includes('ERR_NETWORK') ||
-        rawError.includes('AxiosError') ||
-        rawError.includes('Failed to fetch')
+        rawError.includes('3001')
       ) {
-        errorMsg =
-          'Hospital server unavailable. Please ensure hospital backend is active or ask patient to switch to an Offline QR.';
-      } else if (rawError.includes('QR_SESSION_ALREADY_USED') || rawError.includes('already been used')) {
-        errorMsg = 'This QR code was already consumed. Single-use replay protection is active.';
+        errorMsg = 'Hospital network service is unavailable.';
+      } else if (rawError.includes('QR_SESSION_ALREADY_USED') || rawError.includes('already been used') || rawError.includes('REPLAY')) {
+        errorMsg = 'This QR has already been used.';
       } else if (rawError.includes('QR_SESSION_EXPIRED') || rawError.includes('expired')) {
-        errorMsg = 'This QR code has expired. Please ask the patient to generate a fresh QR.';
-      } else if (rawError.includes('FORBIDDEN') || rawError.includes('consent')) {
+        errorMsg = 'This secure QR has expired. Please generate a new QR.';
+      } else if (rawError.includes('FORBIDDEN') || rawError.includes('consent') || rawError.includes('CONSENT_DENIED')) {
         errorMsg = 'Access denied: Patient consent policy does not authorize this request.';
+      } else if (rawError.includes('facility') || rawError.includes('RECIPIENT_MISMATCH') || rawError.includes('mismatch')) {
+        errorMsg = 'This QR is not bound to this hospital.';
+      } else if (rawError.includes('Invalid QR') || rawError.includes('VALIDATION_ERROR')) {
+        errorMsg = 'This QR code is not a supported Bharat PulseLink patient QR.';
       }
 
       setError(errorMsg);

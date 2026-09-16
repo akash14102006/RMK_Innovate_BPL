@@ -117,7 +117,7 @@ export class HospitalDiscoveryService implements IHospitalDiscoveryService {
       throw new AppError({
         code: ErrorCode.INTERNAL_ERROR,
         message: 'Failed to perform PostGIS geospatial hospital search',
-        details: { latitude, longitude, radiusMeters },
+        detail: JSON.stringify({ latitude, longitude, radiusMeters }),
       });
     }
   }

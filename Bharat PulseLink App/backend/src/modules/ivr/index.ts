@@ -21,5 +21,5 @@ export * from './menus/IVRMenuService.js';
 export * from './domain-placeholders/index.js';
 export * from './asterisk/AsteriskAdapter.js';
 export * from './IVRApplicationService.js';
-export * from './ivr.schemas.ts';
+export * from './ivr.schemas.js';
 export * from './ivr.routes.js';

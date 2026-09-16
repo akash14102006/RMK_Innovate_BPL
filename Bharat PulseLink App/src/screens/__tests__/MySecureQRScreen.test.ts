@@ -80,6 +80,7 @@ describe('MySecureQRScreen (Prompt 107 Master Rework Logic)', () => {
         status: 'ACTIVE',
       },
       isOffline: true,
+      mode: 'OFFLINE_SECURE_QR',
     });
 
     const res = await QRSessionClientService.getActiveSessionUnified();
@@ -100,6 +101,7 @@ describe('MySecureQRScreen (Prompt 107 Master Rework Logic)', () => {
         status: 'ACTIVE',
       },
       isOffline: true,
+      mode: 'OFFLINE_SECURE_QR',
     });
 
     const res = await QRSessionClientService.getActiveSessionUnified({

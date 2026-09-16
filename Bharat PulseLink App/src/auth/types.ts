@@ -9,10 +9,13 @@ export type AuthStep =
   | 'AWAITING_VERIFICATION'
   | 'EXCHANGING'
   | 'SESSION_CREATING'
+  | 'REFRESHING'
+  | 'SESSION_EXPIRED'
   | 'SUCCESS'
   | 'CANCELLED'
   | 'FAILED'
   | 'RATE_LIMITED'
+  | 'NETWORK_ERROR'
   | 'UNAVAILABLE';
 
 export type OtpStep =
@@ -43,6 +46,7 @@ export interface OtpChallenge {
   challengeId: string;
   phoneE164: string;
   maskedPhone: string;
+  deliveryChannel?: 'whatsapp' | 'sms' | 'unknown';
   expiresAt: number;
   resendAvailableAt: number;
   attemptsRemaining: number;
@@ -63,6 +67,6 @@ export interface IAuthProvider {
 }
 
 export interface IOtpAuthProvider extends IAuthProvider {
-  requestOtp(phoneE164: string): Promise<{ success: boolean; challenge?: OtpChallenge; error?: string }>;
-  verifyOtp(challengeId: string, otp: string): Promise<AuthResult>;
+  requestOtp(phoneE164: string): Promise<{ success: boolean; challenge?: OtpChallenge; error?: string; errorCode?: string }>;
+  verifyOtp(challengeId: string, otp: string, phoneE164?: string): Promise<AuthResult>;
 }

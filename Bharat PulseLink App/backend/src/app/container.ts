@@ -15,6 +15,7 @@ import { type StorageClient } from '../infrastructure/storage/storage.js';
 import { type JobQueueRegistry } from '../infrastructure/jobs/queue.js';
 import { type Clock } from '../core/utils/clock.js';
 import { type IDescopeClient } from '../infrastructure/auth/DescopeClient.js';
+import { type IOtpProviderClient } from '../infrastructure/auth/MiniMothClient.js';
 import { type IdentityResolver } from '../modules/identity/IdentityResolver.js';
 import { type PatientProfileService } from '../modules/patient/PatientProfileService.js';
 import { type ConsentAuthorizer } from '../modules/consent/ConsentAuthorizer.js';
@@ -45,6 +46,7 @@ export interface AppDependencies {
 
   // Identity & Auth
   descopeClient: IDescopeClient;
+  minimothClient?: IOtpProviderClient;
   identityResolver: IdentityResolver;
   patientService: PatientProfileService;
   consentAuthorizer: ConsentAuthorizer;

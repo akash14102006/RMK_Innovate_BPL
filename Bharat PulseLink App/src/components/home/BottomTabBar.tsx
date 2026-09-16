@@ -236,6 +236,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconCapsuleActive: {
+    backgroundColor: '#CCFBF1',
+  },
   largeIconCapsule: {
     width: 48,
     height: 32,

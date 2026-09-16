@@ -51,6 +51,11 @@ const envSchema = z.object({
   DESCOPE_PROJECT_ID: z.string().optional(),
   DESCOPE_MANAGEMENT_KEY: z.string().optional(),
 
+  // MiniMoth WhatsApp OTP (Prompt 88, 89)
+  MINIMOTH_API_KEY: z.string().optional(),
+  MINIMOTH_BASE_URL: z.string().url().optional().default('https://api.minimoth.io/v1'),
+  MINIMOTH_WHATSAPP_SENDER_ID: z.string().optional(),
+
   // ── Storage ──────────────────────────────────────────────────────────────
   STORAGE_PROVIDER: z.enum(['local', 's3', 'gcs']).default('local'),
   STORAGE_BUCKET: z.string().optional(),
@@ -139,6 +144,7 @@ export function getSafeStartupInfo(): Record<string, unknown> {
     redisRequired: env.REDIS_REQUIRED,
     storageProvider: env.STORAGE_PROVIDER,
     descopeProjectId: env.DESCOPE_PROJECT_ID ? `${env.DESCOPE_PROJECT_ID.slice(0, 8)}...` : 'not configured',
+    minimothConfigured: Boolean(env.MINIMOTH_API_KEY),
     blockchainProvider: env.BLOCKCHAIN_PROVIDER,
     otelServiceName: env.OTEL_SERVICE_NAME,
   };

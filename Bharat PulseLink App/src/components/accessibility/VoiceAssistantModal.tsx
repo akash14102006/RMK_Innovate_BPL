@@ -170,7 +170,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ visibl
                 isLargeControls && styles.largeCard,
               ]}
               accessible
-              accessibilityRole="dialog"
+              accessibilityRole="none"
               accessibilityLabel="Voice Assistant"
             >
               {/* Header */}

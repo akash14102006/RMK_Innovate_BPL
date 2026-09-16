@@ -110,8 +110,6 @@ export const OTPVerificationScreen: React.FC<Props> = ({ navigation, route }) =>
           navigation.navigate('SecurityPinSetup');
         } else if (nextRoute === 'LocalLock') {
           navigation.navigate('LocalLock');
-        } else {
-          navigation.navigate('AuthEntry');
         }
       } else {
         setErrorMessage(result.error || t('otp.invalidCode'));

@@ -24,6 +24,7 @@ import { useI18n } from '../i18n/I18nContext';
 import GlassCard from '../components/GlassCard';
 import AuthenticationService from '../auth/AuthenticationService';
 import WhatsAppOtpProvider from '../auth/WhatsAppOtpProvider';
+import AuthRouteResolver from '../auth/AuthRouteResolver';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'AuthEntry'>;
 
@@ -87,7 +88,19 @@ export const AuthEntryScreen: React.FC<Props> = ({ navigation }) => {
 
       if (result.success && result.identity) {
         console.log('[AUTH_ENTRY] GOOGLE_SUCCESS', result.identity.id);
-        navigation.navigate('AuthEntry');
+        const nextRoute = await AuthRouteResolver.resolveNextRouteAsync(result.identity);
+        console.log('[AUTH_ENTRY] RESOLVED_NEXT_ROUTE', nextRoute);
+        if (nextRoute === 'TermsConditions') {
+          navigation.navigate('TermsConditions');
+        } else if (nextRoute === 'PrivacyPolicy') {
+          navigation.navigate('PrivacyPolicy');
+        } else if (nextRoute === 'BiometricSetup') {
+          navigation.navigate('BiometricSetup');
+        } else if (nextRoute === 'SecurityPinSetup') {
+          navigation.navigate('SecurityPinSetup');
+        } else if (nextRoute === 'LocalLock') {
+          navigation.navigate('LocalLock');
+        }
       } else if (result.isBlocked) {
         setErrorMessage(result.error || t('auth.providerBlocked'));
       } else {

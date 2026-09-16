@@ -39,6 +39,13 @@ export interface OfflineQREnvelope {
 }
 
 export interface ApprovedPatientDataPayload {
+  fullName?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  bloodGroup?: string | null;
+  age?: number | string;
+  primaryPhone?: string | null;
+  abhaId?: string | null;
   profile?: {
     fullName: string;
     gender: string;
@@ -52,9 +59,11 @@ export interface ApprovedPatientDataPayload {
     phone?: string;
     relationship?: string;
   } | null;
-  allergies?: Array<{ substance: string; severity?: string }>;
-  medications?: Array<{ medicationName: string; dosage?: string }>;
-  conditions?: Array<{ conditionName: string; status?: string }>;
+  allergies?: Array<{ substance: string; severity?: string }> | any[];
+  medications?: Array<{ medicationName: string; dosage?: string }> | any[];
+  conditions?: Array<{ conditionName: string; status?: string }> | any[];
+  surgeries?: any[];
+  [key: string]: any;
 }
 
 /**
@@ -210,19 +219,19 @@ export class OfflineCryptoService {
 
     // WebCrypto path
     const subtle = getSubtleCrypto();
-    const key = await subtle.importKey('raw', rawDek, { name: 'AES-GCM' }, false, ['encrypt']);
+    const key = await subtle.importKey('raw', rawDek as any, { name: 'AES-GCM' }, false, ['encrypt']);
     const plaintextBytes = new TextEncoder().encode(plaintext);
     const aadBytes = new TextEncoder().encode(aadString);
 
     const encrypted = await subtle.encrypt(
       {
         name: 'AES-GCM',
-        iv,
-        additionalData: aadBytes,
+        iv: iv as any,
+        additionalData: aadBytes as any,
         tagLength: 128,
       },
       key,
-      plaintextBytes
+      plaintextBytes as any
     );
 
     const encryptedBytes = new Uint8Array(encrypted);
@@ -267,7 +276,7 @@ export class OfflineCryptoService {
 
     // WebCrypto path
     const subtle = getSubtleCrypto();
-    const key = await subtle.importKey('raw', rawDek, { name: 'AES-GCM' }, false, ['decrypt']);
+    const key = await subtle.importKey('raw', rawDek as any, { name: 'AES-GCM' }, false, ['decrypt']);
     const ciphertextBytes = base64ToUint8Array(ciphertextBase64);
     const tagBytes = hexToUint8Array(authTagHex);
 
@@ -282,12 +291,12 @@ export class OfflineCryptoService {
       const decrypted = await subtle.decrypt(
         {
           name: 'AES-GCM',
-          iv,
-          additionalData: aadBytes,
+          iv: iv as any,
+          additionalData: aadBytes as any,
           tagLength: 128,
         },
         key,
-        combined
+        combined as any
       );
       return new TextDecoder().decode(decrypted);
     } catch {
@@ -319,8 +328,8 @@ export class OfflineCryptoService {
 
     const subtle = getSubtleCrypto();
     const der = pemToDer(hospitalPublicKeyPem);
-    const key = await subtle.importKey('spki', der, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']);
-    const wrapped = await subtle.encrypt({ name: 'RSA-OAEP' }, key, rawDek);
+    const key = await subtle.importKey('spki', der as any, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']);
+    const wrapped = await subtle.encrypt({ name: 'RSA-OAEP' }, key, rawDek as any);
     return uint8ArrayToBase64(new Uint8Array(wrapped));
   }
 
@@ -351,9 +360,9 @@ export class OfflineCryptoService {
 
     const subtle = getSubtleCrypto();
     const der = pemToDer(hospitalPrivateKeyPem);
-    const key = await subtle.importKey('pkcs8', der, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
+    const key = await subtle.importKey('pkcs8', der as any, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']);
     const wrappedBytes = base64ToUint8Array(wrappedDekBase64);
-    const unwrapped = await subtle.decrypt({ name: 'RSA-OAEP' }, key, wrappedBytes);
+    const unwrapped = await subtle.decrypt({ name: 'RSA-OAEP' }, key, wrappedBytes as any);
     return new Uint8Array(unwrapped);
   }
 
@@ -432,7 +441,7 @@ export class OfflineCryptoService {
         ['verify']
       );
       const sigBytes = base64ToUint8Array(signatureBase64);
-      return await subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(canonicalString));
+      return await subtle.verify('HMAC', key, sigBytes as any, new TextEncoder().encode(canonicalString) as any);
     } catch {
       return false;
     }

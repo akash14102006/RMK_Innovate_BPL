@@ -146,109 +146,214 @@ function getPrioritizationExplanation(result: TriageAssessmentResult): string {
     }
 }
 
-interface ClinicalSafetyNetProps {
+interface ClinicalResultPanelProps {
     result: TriageAssessmentResult;
     patientName: string;
-    onRoute: () => void;
+    onConfirmAdmission: () => void;
     loading: boolean;
 }
 
-function ClinicalSafetyNet({ result, patientName, onRoute, loading }: ClinicalSafetyNetProps) {
-    const priority = result.priority || (result.riskLevel ? (result.riskLevel.toUpperCase() as any) : 'MODERATE');
-    const isCritical = priority === 'CRITICAL';
-    const isHigh = priority === 'HIGH';
-    const isModerate = priority === 'MODERATE';
+function getClinicalOverviewExplanation(result: TriageAssessmentResult): string {
+    const factors = result.riskFactors && result.riskFactors.length > 0
+        ? result.riskFactors
+        : (result.keyRiskFactors && result.keyRiskFactors.length > 0
+            ? result.keyRiskFactors
+            : (result.riskMarkers || []));
 
-    // Priority Colors for text
-    const priorityTextColor = isCritical ? 'text-rose-600' : isHigh ? 'text-red-500' : isModerate ? 'text-amber-500' : 'text-teal-600';
-    
-    // Status Dot Color (top left)
-    const dotColor = isCritical ? 'bg-rose-500' : isHigh ? 'bg-red-500' : isModerate ? 'bg-amber-500' : 'bg-teal-500';
+    if (factors.length > 0) {
+        return `Autonomous Diagnostic (v2.1-PRO): Analysis based on ${factors.length} clinical indicator${factors.length > 1 ? 's' : ''}. Evidence: ${factors.join(', ')}.`;
+    }
 
-    // Header Right Icon styling
-    const headerIconColor = isCritical || isHigh ? 'text-red-500 bg-red-50 border-red-100' : 'text-teal-600 bg-teal-50 border-teal-100';
+    if (Array.isArray(result.explanation) && result.explanation.length > 0) {
+        const indicators = result.explanation
+            .map((e: any) => e.factor || e.finding)
+            .filter(Boolean);
+        if (indicators.length > 0) {
+            return `Autonomous Diagnostic (v2.1-PRO): Analysis based on ${indicators.length} clinical indicator${indicators.length > 1 ? 's' : ''}. Evidence: ${indicators.join(', ')}.`;
+        }
+    }
 
-    const priorityScore = result.priorityScore ?? result.riskScore ?? 85;
+    if (typeof result.clinicalSummary === 'string' && result.clinicalSummary.trim().length > 0) {
+        const cleaned = result.clinicalSummary
+            .replace(/(?:SpO2|Oxygen Saturation|BP|Blood Pressure|Temp|Temperature|Heart Rate|HR)\s*[:=]?\s*[\d./°%A-Za-z]+\b/gi, '')
+            .replace(/\(\s*\)/g, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+        if (cleaned.length > 15) {
+            return `Autonomous Diagnostic (v2.1-PRO): ${cleaned}`;
+        }
+    }
+
+    return 'Autonomous Diagnostic (v2.1-PRO): Analysis based on presenting physiological parameters and clinical indicators.';
+}
+
+function ClinicalResultPanel({ result, patientName, onConfirmAdmission, loading }: ClinicalResultPanelProps) {
+    const rawPriority = (result.priority || result.riskLevel || 'HIGH').toUpperCase();
+    const isCritical = rawPriority === 'CRITICAL';
+    const isHigh = rawPriority === 'HIGH' || rawPriority === 'HIGH RISK';
+    const isHighOrCritical = isCritical || isHigh;
+    const isMedium = rawPriority === 'MEDIUM' || rawPriority === 'MODERATE';
+
+    const priorityLabel = isCritical ? 'Critical' : isHigh ? 'High' : isMedium ? 'Moderate' : 'Low';
+
     const confidenceVal = typeof result.confidence === 'number'
         ? (result.confidence > 1 ? Math.round(result.confidence) : Math.round(result.confidence * 100))
-        : 94;
+        : 96;
 
-    const engineName = result.modelUsed === 'XGBoost'
-        ? 'XGBOOST TRIAGE'
-        : result.modelUsed === 'Gemini'
-            ? (result.isSimulated ? 'GEMINI REASONING · FALLBACK' : 'GEMINI REASONING')
-            : 'LOCAL FALLBACK';
+    const riskIndexVal = result.riskScore ?? result.priorityScore ?? 65;
 
-    const explanationText = getPrioritizationExplanation(result);
+    const rawFactors = result.riskFactors && result.riskFactors.length > 0
+        ? result.riskFactors
+        : (result.keyRiskFactors && result.keyRiskFactors.length > 0
+            ? result.keyRiskFactors
+            : (result.riskMarkers || []));
+    const riskFactors = Array.isArray(rawFactors) ? rawFactors : [];
 
-    const deptName = result.recommendedDepartment || result.department || 'Emergency Medicine';
-    const deptLocation = (result as any).departmentLocation || (result as any).location || 'Location not configured';
+    const explanationText = getClinicalOverviewExplanation(result);
+    const departmentName = result.recommendedDepartment || result.department || 'Emergency Medicine';
 
     return (
-        <div className="w-full max-w-[900px] mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-2">
-            
-            {/* 1. Main Analysis Card */}
-            <div 
-                className="rounded-[20px] p-5 lg:p-6 transition-all duration-300"
-                style={{
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid rgba(140, 155, 170, 0.14)',
-                    boxShadow: '0 8px 24px rgba(30, 45, 60, 0.05), inset 1px 1px 2px rgba(255, 255, 255, 0.8)'
-                }}
+        <div className="space-y-5">
+            {/* 1. Main Clinical Analysis Card */}
+            <div
+                className={`
+                    bg-white
+                    border
+                    ${isHighOrCritical ? 'border-red-200/90' : isMedium ? 'border-amber-200/90' : 'border-emerald-200/90'}
+                    rounded-[26px]
+                    shadow-[0_4px_20px_rgba(15,23,42,0.04)]
+                    p-6
+                `}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2.5">
-                        <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
-                        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                            Clinical Analysis
-                        </span>
-                        <span className="ml-2 text-[9px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-sm tracking-wider uppercase border border-slate-200">
-                            {engineName}
-                        </span>
-                    </div>
-                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm ${headerIconColor}`}>
-                        <Zap className="w-4 h-4" />
-                    </div>
-                </div>
+                {/* Header Row */}
+                <div className="flex items-start justify-between">
+                    <div>
+                        {/* Clinical Analysis Tag + Model Badge */}
+                        <div className="flex items-center gap-2">
+                            <span
+                                className={`h-2 w-2 rounded-full ${
+                                    isHighOrCritical
+                                        ? 'bg-red-500'
+                                        : isMedium
+                                            ? 'bg-amber-500'
+                                            : 'bg-emerald-500'
+                                }`}
+                            />
+                            <span
+                                className={`text-[11px] font-semibold ${
+                                    isHighOrCritical
+                                        ? 'text-red-600'
+                                        : isMedium
+                                            ? 'text-amber-600'
+                                            : 'text-emerald-600'
+                                }`}
+                            >
+                                Clinical Analysis
+                            </span>
+                            <span
+                                className="
+                                    inline-flex
+                                    items-center
+                                    rounded-md
+                                    border
+                                    border-slate-200
+                                    px-2
+                                    py-0.5
+                                    text-[9px]
+                                    font-mono
+                                    font-medium
+                                    text-slate-700
+                                    bg-white
+                                    shadow-2xs
+                                "
+                            >
+                                {result.isSimulated ? 'LOCAL FALLBACK' : 'AI TRAINED MODEL'}
+                            </span>
+                        </div>
 
-                {/* Priority Area */}
-                <div className="mb-6">
-                    <h2 className="text-[26px] lg:text-[28px] font-bold text-slate-900 tracking-tight leading-none mb-1">
-                        {patientName || 'Anonymous Patient'}
-                    </h2>
-                    <p className={`text-base font-bold ${priorityTextColor}`}>
-                        {priority === 'CRITICAL' ? 'Critical Priority' : priority === 'HIGH' ? 'High Case' : priority === 'MODERATE' ? 'Moderate Priority' : 'Low Priority'}
-                    </p>
+                        {/* Patient Name */}
+                        <h2
+                            className="
+                                mt-2.5
+                                text-[26px]
+                                leading-tight
+                                font-semibold
+                                text-slate-900
+                                tracking-tight
+                            "
+                        >
+                            {patientName || 'Arun'}
+                        </h2>
+
+                        {/* Priority Label */}
+                        <div
+                            className={`
+                                mt-0.5
+                                text-[16px]
+                                font-medium
+                                ${
+                                    isHighOrCritical
+                                        ? 'text-red-500'
+                                        : isMedium
+                                            ? 'text-amber-500'
+                                            : 'text-emerald-500'
+                                }
+                            `}
+                        >
+                            {priorityLabel} Case
+                        </div>
+                    </div>
+
+                    {/* Top Right Action Icon */}
+                    <div
+                        className={`
+                            h-14
+                            w-14
+                            rounded-full
+                            flex
+                            items-center
+                            justify-center
+                            ${
+                                isHighOrCritical
+                                    ? 'bg-red-600 text-white shadow-[0_6px_20px_rgba(220,38,38,0.35)]'
+                                    : isMedium
+                                        ? 'bg-amber-500 text-white shadow-[0_6px_20px_rgba(245,158,11,0.35)]'
+                                        : 'bg-teal-600 text-white shadow-[0_6px_20px_rgba(13,148,136,0.35)]'
+                            }
+                        `}
+                    >
+                        <Zap className="w-6 h-6 fill-white text-white" />
+                    </div>
                 </div>
 
                 {/* Divider */}
-                <hr className="border-t border-slate-100 mb-5" />
+                <div className="my-5 border-t border-slate-100" />
 
-                {/* Metrics Area */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Metrics */}
+                <div className="grid grid-cols-2 gap-6">
                     <div>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.04em] text-slate-400 block mb-0.5">
+                        <span className="text-[11px] text-slate-400 font-medium">
                             AI Confidence
                         </span>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-[28px] font-semibold text-slate-900 leading-none tracking-tight">
+                        <div className="mt-1 flex items-baseline gap-1">
+                            <span className="text-[34px] font-bold text-slate-900 leading-none tracking-tight">
                                 {confidenceVal}
                             </span>
-                            <span className="text-xs font-medium text-slate-400">
+                            <span className="text-[13px] text-slate-400 font-medium">
                                 %
                             </span>
                         </div>
                     </div>
+
                     <div>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.04em] text-slate-400 block mb-0.5">
-                            Priority Score
+                        <span className="text-[11px] text-slate-400 font-medium">
+                            Risk Index
                         </span>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-[28px] font-semibold text-slate-900 leading-none tracking-tight">
-                                {priorityScore}
+                        <div className="mt-1 flex items-baseline gap-1">
+                            <span className="text-[34px] font-bold text-slate-900 leading-none tracking-tight">
+                                {riskIndexVal}
                             </span>
-                            <span className="text-xs font-medium text-slate-400">
+                            <span className="text-[13px] text-slate-400 font-medium">
                                 /100
                             </span>
                         </div>
@@ -256,92 +361,162 @@ function ClinicalSafetyNet({ result, patientName, onRoute, loading }: ClinicalSa
                 </div>
             </div>
 
-            {/* 2. Clinical AI Overview */}
-            <div className="space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500 block px-1">
-                    Clinical AI Overview
-                </span>
-                <div 
-                    className="rounded-[16px] p-4 sm:p-5 text-[13px] text-slate-700 leading-relaxed font-normal"
-                    style={{
-                        backgroundColor: '#FFFFFF',
-                        border: '1px solid rgba(140, 155, 170, 0.14)',
-                        boxShadow: '0 4px 12px rgba(30, 45, 60, 0.03), inset 1px 1px 2px rgba(255, 255, 255, 0.8)'
-                    }}
-                >
-                    {explanationText}
-                </div>
-            </div>
-
-            {/* 3. Automated Clinical Routing */}
-            <div className="space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500 block px-1">
-                    Automated Clinical Routing
-                </span>
-                <div 
-                    className="rounded-[16px] p-4 sm:p-5 flex items-center justify-between gap-4"
-                    style={{
-                        backgroundColor: '#FFFFFF',
-                        border: '1px solid rgba(140, 155, 170, 0.14)',
-                        boxShadow: '0 4px 12px rgba(30, 45, 60, 0.03), inset 1px 1px 2px rgba(255, 255, 255, 0.8)'
-                    }}
-                >
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                            <Zap className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                            <span className="text-[11px] font-bold uppercase text-teal-700 tracking-wider">
-                                Automated Clinical Routing
+            {/* 2. Primary Risk Markers */}
+            {riskFactors.length > 0 && (
+                <div>
+                    <div className="text-[11px] font-medium text-slate-400 mb-2 px-1">
+                        Primary Risk Markers
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {riskFactors.map((factor: string, index: number) => (
+                            <span
+                                key={index}
+                                className="
+                                    inline-flex
+                                    items-center
+                                    rounded-lg
+                                    border
+                                    border-slate-200
+                                    bg-white
+                                    px-3
+                                    py-1.5
+                                    text-[11px]
+                                    font-medium
+                                    text-slate-800
+                                    shadow-[0_1px_3px_rgba(0,0,0,0.03)]
+                                "
+                            >
+                                [AUTO] {factor}
                             </span>
-                        </div>
-                        <h3 className="text-xl sm:text-[22px] font-bold text-slate-900 tracking-tight truncate mt-1">
-                            {deptName}
-                        </h3>
-                        <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1">
-                            {deptLocation}
-                        </p>
+                        ))}
                     </div>
+                </div>
+            )}
 
-                    <div className="shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 shadow-sm">
-                            <Stethoscope className="w-5 h-5" />
-                        </div>
-                    </div>
+            {/* 3. Clinical AI Overview */}
+            <div>
+                <div className="mb-2 px-1 text-[11px] font-medium text-slate-400">
+                    Clinical AI Overview
+                </div>
+                <div
+                    className="
+                        rounded-2xl
+                        border
+                        border-slate-200
+                        bg-white
+                        p-5
+                        shadow-[0_2px_8px_rgba(0,0,0,0.03)]
+                    "
+                >
+                    <p
+                        className="
+                            text-[14px]
+                            leading-relaxed
+                            font-semibold
+                            text-slate-900
+                        "
+                    >
+                        {explanationText}
+                    </p>
                 </div>
             </div>
 
-            {/* 4. Action Button */}
+            {/* 4. Automated Clinical Routing */}
+            <div
+                className="
+                    rounded-2xl
+                    border
+                    border-teal-100
+                    bg-white
+                    p-5
+                    shadow-[0_2px_10px_rgba(13,148,136,0.06)]
+                    flex
+                    items-center
+                    justify-between
+                "
+            >
+                <div>
+                    <div
+                        className="
+                            flex
+                            items-center
+                            gap-1.5
+                            text-[11px]
+                            font-semibold
+                            text-teal-600
+                        "
+                    >
+                        <Zap className="w-3.5 h-3.5 fill-teal-600 text-teal-600" />
+                        Automated Clinical Routing
+                    </div>
+
+                    <div
+                        className="
+                            mt-2
+                            text-[24px]
+                            font-bold
+                            leading-tight
+                            text-slate-900
+                            tracking-tight
+                        "
+                    >
+                        {departmentName}
+                    </div>
+
+                    {result.routingReason && (
+                        <p className="mt-1.5 text-[12px] text-teal-700 font-medium">
+                            {result.routingReason}
+                        </p>
+                    )}
+                </div>
+
+                <div
+                    className="
+                        h-14
+                        w-14
+                        rounded-2xl
+                        bg-teal-50/80
+                        border
+                        border-teal-200/60
+                        flex
+                        items-center
+                        justify-center
+                        text-teal-600
+                        shadow-sm
+                        shrink-0
+                    "
+                >
+                    <Stethoscope className="w-7 h-7" />
+                </div>
+            </div>
+
+            {/* 5. Confirm Patient Admission Button */}
             <Button
                 id="bpl-route-patient-btn"
-                onClick={onRoute}
+                onClick={onConfirmAdmission}
                 disabled={loading || (result as any).storedRecord?.status === 'Admitted'}
-                className={`w-full h-12 rounded-[14px] font-bold text-sm tracking-wide transition-all duration-150 flex items-center justify-center gap-2 ${
-                    (result as any).storedRecord?.status === 'Admitted'
-                        ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-default shadow-none'
-                        : 'bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white shadow-md shadow-teal-700/20'
-                }`}
+                className="
+                    w-full
+                    h-14
+                    rounded-2xl
+                    bg-teal-600
+                    hover:bg-teal-700
+                    text-white
+                    text-[13px]
+                    font-semibold
+                    shadow-[0_4px_14px_rgba(13,148,136,0.25)]
+                    transition-all
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                "
             >
-                {loading ? (
-                    <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Processing Admission...</span>
-                    </>
-                ) : (result as any).storedRecord?.status === 'Admitted' ? (
-                    <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Patient Admitted</span>
-                    </>
-                ) : (
-                    <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Confirm Patient Admission</span>
-                    </>
-                )}
+                <CheckCircle2 className="w-4 h-4" />
+                {(result as any).storedRecord?.status === 'Admitted'
+                    ? 'Admission Confirmed'
+                    : 'Confirm Patient Admission'}
             </Button>
-            
-            {/* Subtle disclaimer */}
-            <p className="text-center text-[10px] text-slate-400 font-medium">
-                Clinical Decision Support
-            </p>
         </div>
     );
 }
@@ -1356,64 +1531,62 @@ export default function PatientTriage({ onNavigate }: PatientTriageProps) {
                 {/* Results Panel */}
                 <div className="h-fit">
                     {loading ? (
-                        <div className="w-full max-w-[900px] mx-auto space-y-6 animate-pulse">
+                        <div className="rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-sm space-y-6 animate-pulse">
                             {/* Skeleton Main Card */}
-                            <div className="rounded-[20px] p-5 lg:p-6 bg-white border border-slate-100 shadow-sm">
+                            <div className="rounded-[22px] p-6 bg-white border border-slate-100 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                                 <div className="flex items-center justify-between mb-4">
-                                    <div className="w-32 h-4 bg-slate-100 rounded-md"></div>
-                                    <div className="w-8 h-8 rounded-full bg-slate-100"></div>
+                                    <div className="w-32 h-3.5 bg-slate-100 rounded-full" />
+                                    <div className="w-14 h-14 rounded-full bg-slate-100" />
                                 </div>
                                 <div className="mb-6">
-                                    <div className="w-48 h-8 bg-slate-100 rounded-md mb-2"></div>
-                                    <div className="w-24 h-5 bg-slate-100 rounded-md"></div>
+                                    <div className="w-40 h-7 bg-slate-100 rounded-lg mb-2" />
+                                    <div className="w-24 h-5 bg-slate-100 rounded-lg" />
                                 </div>
-                                <hr className="border-t border-slate-100 mb-5" />
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="border-t border-slate-200 my-6" />
+                                <div className="grid grid-cols-2 gap-8">
                                     <div>
-                                        <div className="w-24 h-3 bg-slate-100 rounded-md mb-1.5"></div>
-                                        <div className="w-16 h-8 bg-slate-100 rounded-md"></div>
+                                        <div className="w-20 h-2.5 bg-slate-100 rounded-md mb-2" />
+                                        <div className="w-16 h-8 bg-slate-100 rounded-lg" />
                                     </div>
                                     <div>
-                                        <div className="w-24 h-3 bg-slate-100 rounded-md mb-1.5"></div>
-                                        <div className="w-16 h-8 bg-slate-100 rounded-md"></div>
+                                        <div className="w-20 h-2.5 bg-slate-100 rounded-md mb-2" />
+                                        <div className="w-20 h-8 bg-slate-100 rounded-lg" />
                                     </div>
                                 </div>
                             </div>
                             
                             {/* Skeleton Overview */}
-                            <div className="space-y-2">
-                                <div className="w-32 h-3 bg-slate-100 rounded-md ml-1"></div>
-                                <div className="rounded-[16px] p-5 bg-white border border-slate-100 shadow-sm h-24"></div>
-                            </div>
+                            <div className="rounded-[18px] p-5 bg-white border border-slate-200 shadow-[0_3px_10px_rgba(15,23,42,0.05)] h-24" />
                             
                             {/* Skeleton Routing */}
-                            <div className="space-y-2">
-                                <div className="w-32 h-3 bg-slate-100 rounded-md ml-1"></div>
-                                <div className="rounded-[16px] p-5 bg-white border border-slate-100 shadow-sm h-24"></div>
-                            </div>
+                            <div className="rounded-[18px] p-5 bg-white border border-teal-100 shadow-[0_4px_12px_rgba(15,118,110,0.07)] h-24" />
                         </div>
                     ) : !result ? (
-                        <div className="h-full min-h-[520px] bg-slate-50/50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-8 text-center space-y-3">
-                            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-200">
-                                <BrainCircuit className="w-7 h-7 text-teal-600" />
-                            </div>
-                            <h3 className="text-slate-700 font-bold text-base">Awaiting Clinical Data</h3>
-                            <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
-                                Complete the assessment form or scan a Bharat PulseLink QR code to run intelligent triage.
-                            </p>
-                            <div className="flex items-center gap-2 pt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> XGBoost Primary</span>
-                                <span>•</span>
-                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block"></span> Gemini Fallback</span>
+                        <div className="rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-sm">
+                            <div className="min-h-[520px] bg-slate-50/50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center p-8 text-center space-y-3">
+                                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-200">
+                                    <BrainCircuit className="w-7 h-7 text-teal-600" />
+                                </div>
+                                <h3 className="text-slate-700 font-bold text-base">Awaiting Clinical Data</h3>
+                                <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
+                                    Complete the assessment form or scan a Bharat PulseLink QR code to run intelligent triage.
+                                </p>
+                                <div className="flex items-center gap-2 pt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> XGBoost Primary</span>
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block"></span> Gemini Fallback</span>
+                                </div>
                             </div>
                         </div>
                     ) : (
-                        <ClinicalSafetyNet
-                            result={result}
-                            patientName={formData.name}
-                            onRoute={handleConfirmAdmission}
-                            loading={loading}
-                        />
+                        <div className="rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-sm">
+                            <ClinicalResultPanel
+                                result={result}
+                                patientName={formData.name}
+                                onConfirmAdmission={handleConfirmAdmission}
+                                loading={loading}
+                            />
+                        </div>
                     )}
                 </div>
             </div>

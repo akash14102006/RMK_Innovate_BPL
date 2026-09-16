@@ -261,7 +261,7 @@ export const MySecureQRScreen: React.FC = () => {
 
           <TouchableOpacity
             style={[styles.headerActionBtn, isLoading && { opacity: 0.6 }]}
-            onPress={loadActiveQRSession}
+            onPress={() => loadActiveQRSession()}
             disabled={isLoading}
             accessibilityRole="button"
             accessibilityLabel="Refresh secure QR session"
@@ -418,7 +418,7 @@ export const MySecureQRScreen: React.FC = () => {
                   <Text style={styles.qrStateSub}>
                     Unable to reach the national healthcare gateway. Please try again shortly.
                   </Text>
-                  <TouchableOpacity style={styles.primaryActionBtn} onPress={loadActiveQRSession}>
+                  <TouchableOpacity style={styles.primaryActionBtn} onPress={() => loadActiveQRSession()}>
                     <Text style={styles.primaryActionBtnText}>Retry Connection</Text>
                   </TouchableOpacity>
                 </View>
@@ -440,7 +440,7 @@ export const MySecureQRScreen: React.FC = () => {
                   <Text style={styles.qrStateSub}>
                     You are currently offline and no pre-issued capabilities exist in your secure pool. Please reconnect to mint new capabilities.
                   </Text>
-                  <TouchableOpacity style={styles.primaryActionBtn} onPress={loadActiveQRSession}>
+                  <TouchableOpacity style={styles.primaryActionBtn} onPress={() => loadActiveQRSession()}>
                     <Text style={styles.primaryActionBtnText}>Reconnect & Retry</Text>
                   </TouchableOpacity>
                 </View>
@@ -451,7 +451,7 @@ export const MySecureQRScreen: React.FC = () => {
                   <Text style={styles.qrStateSub}>
                     Your device is connected to the internet, but the Bharat PulseLink healthcare gateway did not respond.
                   </Text>
-                  <TouchableOpacity style={styles.primaryActionBtn} onPress={loadActiveQRSession}>
+                  <TouchableOpacity style={styles.primaryActionBtn} onPress={() => loadActiveQRSession()}>
                     <Text style={styles.primaryActionBtnText}>Retry Connection</Text>
                   </TouchableOpacity>
                 </View>
@@ -462,7 +462,7 @@ export const MySecureQRScreen: React.FC = () => {
                   <Text style={styles.qrStateSub}>
                     This one-time token was successfully consumed and exchanged with the hospital.
                   </Text>
-                  <TouchableOpacity style={styles.primaryActionBtn} onPress={loadActiveQRSession}>
+                  <TouchableOpacity style={styles.primaryActionBtn} onPress={() => loadActiveQRSession()}>
                     <Text style={styles.primaryActionBtnText}>Generate Next QR</Text>
                   </TouchableOpacity>
                 </View>
@@ -473,7 +473,7 @@ export const MySecureQRScreen: React.FC = () => {
                   <Text style={styles.qrStateSub}>
                     Sessions expire automatically to protect your healthcare confidentiality.
                   </Text>
-                  <TouchableOpacity style={styles.primaryActionBtn} onPress={loadActiveQRSession}>
+                  <TouchableOpacity style={styles.primaryActionBtn} onPress={() => loadActiveQRSession()}>
                     <Text style={styles.primaryActionBtnText}>Generate New Session</Text>
                   </TouchableOpacity>
                 </View>

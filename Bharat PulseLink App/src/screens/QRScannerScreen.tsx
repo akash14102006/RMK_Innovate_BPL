@@ -110,7 +110,7 @@ export const QRScannerScreen: React.FC = () => {
         <View style={styles.cameraSurface}>
           {permission?.granted ? (
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={styles.fullFill}
               facing="back"
               enableTorch={hasTorch}
               barcodeScannerSettings={{
@@ -119,7 +119,7 @@ export const QRScannerScreen: React.FC = () => {
               onBarcodeScanned={isScanningLocked ? undefined : handleBarcodeScanned}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFillObject, styles.permissionFallback]}>
+            <View style={[styles.fullFill, styles.permissionFallback]}>
               <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
                 <Path
                   d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
@@ -385,6 +385,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
+  },
+  fullFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
 });
 

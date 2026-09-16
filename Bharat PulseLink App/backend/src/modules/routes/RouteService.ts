@@ -203,7 +203,7 @@ export class RouteService {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
         throw new AppError({
-          code: ErrorCode.GATEWAY_TIMEOUT,
+          code: ErrorCode.TIMEOUT,
           message: 'Route calculation request timed out',
         });
       }
@@ -322,19 +322,19 @@ export class RouteService {
   private _validateCoordinates(p: LatLngPoint, fieldName: string): void {
     if (!p || typeof p !== 'object') {
       throw new AppError({
-        code: ErrorCode.BAD_REQUEST,
+        code: ErrorCode.VALIDATION_ERROR,
         message: `Invalid ${fieldName}: coordinates object required`,
       });
     }
     if (typeof p.latitude !== 'number' || isNaN(p.latitude) || p.latitude < -90 || p.latitude > 90) {
       throw new AppError({
-        code: ErrorCode.BAD_REQUEST,
+        code: ErrorCode.VALIDATION_ERROR,
         message: `Invalid ${fieldName} latitude: must be a number between -90 and 90`,
       });
     }
     if (typeof p.longitude !== 'number' || isNaN(p.longitude) || p.longitude < -180 || p.longitude > 180) {
       throw new AppError({
-        code: ErrorCode.BAD_REQUEST,
+        code: ErrorCode.VALIDATION_ERROR,
         message: `Invalid ${fieldName} longitude: must be a number between -180 and 180`,
       });
     }

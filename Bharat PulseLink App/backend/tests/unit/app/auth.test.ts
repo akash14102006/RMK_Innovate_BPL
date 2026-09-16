@@ -88,8 +88,32 @@ describe('Authentication & Session Endpoints', () => {
           updateLastAuthenticated: async () => {},
           registerDevice: async () => ({} as any),
         } as any,
+        userRepo: {
+          findById: async () => mockUser,
+          updateLastAuthenticated: async () => {},
+          registerDevice: async () => ({} as any),
+        } as any,
+        userRepo: {
+          findById: async () => mockUser,
+          updateLastAuthenticated: async () => {},
+          registerDevice: async () => ({} as any),
+        } as any,
         patientRepo: {
           findByUserId: async () => mockProfile,
+        } as any,
+        sessionService: {
+          createSession: async () => ({
+            session: { sessionId: 'sess_wa_123', current: true, status: 'ACTIVE' } as any,
+            sessionToken: 'test_token_wa_123',
+            expiresAt: new Date(),
+          }),
+        } as any,
+        sessionService: {
+          createSession: async () => ({
+            session: { sessionId: 'sess_wa_123', current: true, status: 'ACTIVE' } as any,
+            sessionToken: 'test_token_wa_123',
+            expiresAt: new Date(),
+          }),
         } as any,
         sessionService: {
           createSession: async () => ({
@@ -112,6 +136,7 @@ describe('Authentication & Session Endpoints', () => {
       },
     });
 
+    if (response.statusCode !== 200) console.log("SEND ERROR:", response.statusCode, response.json());
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.user.id).toBe('usr_test_123');
@@ -521,4 +546,189 @@ describe('Authentication & Session Endpoints', () => {
 
     await app.close();
   });
+
+  it('POST /api/v1/auth/whatsapp/send returns challenge for valid Indian mobile number', async () => {
+    const app = await createTestApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/whatsapp/send',
+      payload: {
+        phone: '+919876543210',
+      },
+    });
+    
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.challengeId).toBeDefined();
+    expect(body.maskedPhone).toBe('+91 98*** **210');
+    expect(body.deliveryChannel).toBeDefined();
+    expect(body.expiresAt).toBeGreaterThan(Date.now());
+
+    await app.close();
+  });
+
+  it('POST /api/v1/auth/whatsapp/send rejects invalid phone numbers', async () => {
+    const app = await createTestApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/whatsapp/send',
+      payload: {
+        phone: '123',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+
+    await app.close();
+  });
+
+  it('POST /api/v1/auth/whatsapp/verify creates session and resolves canonical user on valid OTP', async () => {
+    const mockUser: UserRow = {
+      id: 'usr_wa_123',
+      status: 'ACTIVE',
+      last_authenticated_at: new Date(),
+      last_seen_at: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    const mockProfile: PatientProfileRow = {
+      id: 'pat_wa_123',
+      user_id: 'usr_wa_123',
+      version: 1,
+      full_name: 'Patient 3210',
+      preferred_name: null,
+      gender: 'UNDISCLOSED',
+      date_of_birth: new Date('2000-01-01'),
+      status: 'INCOMPLETE',
+      abha_id: null,
+      blood_group: null,
+      marital_status: null,
+      occupation: null,
+      primary_phone: '+919876543210',
+      primary_email: null,
+      address_line_1: null,
+      address_line_2: null,
+      locality: null,
+      city_id: null,
+      district_id: null,
+      state_id: null,
+      pincode: null,
+      height_cm: null,
+      weight_kg: null,
+      smoking_status: null,
+      alcohol_status: null,
+      activity_level: null,
+      sleep_pattern: null,
+      completed_at: null,
+      last_synced_at: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    const app = await createTestApp({
+      depsOverrides: {
+        identityResolver: {
+          resolveOrCreateUser: async () => ({
+            user: { id: mockUser.id, status: mockUser.status },
+            identity: { id: 'ident_wa_123', user_id: mockUser.id } as any,
+            isNewUser: true,
+          }),
+        } as any,
+        userRepo: {
+          findById: async () => mockUser,
+          updateLastAuthenticated: async () => {},
+          registerDevice: async () => ({} as any),
+        } as any,
+        patientRepo: {
+          findByUserId: async () => mockProfile,
+        } as any,
+        sessionService: {
+          createSession: async () => ({
+            session: { sessionId: 'sess_wa_123', current: true, status: 'ACTIVE' } as any,
+            sessionToken: 'test_token_wa_123',
+            expiresAt: new Date(),
+          }),
+        } as any,
+        minimothClient: {
+          sendOtp: async () => ({
+            success: true,
+            challengeId: 'chg_wa_valid',
+            maskedPhone: '+91 98*** **210',
+            deliveryChannel: 'whatsapp',
+            expiresAt: Date.now() + 300000,
+          }),
+          verifyOtp: async (challengeId: string, otp: string, phone: string) => {
+            if (otp === '654321') {
+              return {
+                success: true,
+                phone,
+                providerSubject: 'minimoth_9876543210',
+              };
+            }
+            return {
+              success: false,
+              error: 'Invalid OTP',
+              errorCode: 'INVALID_OTP',
+            };
+          },
+        } as any,
+      },
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/whatsapp/verify',
+      payload: {
+        challengeId: 'chg_wa_valid',
+        otp: '654321',
+        phone: '+919876543210',
+      },
+    });
+
+    
+    
+    const body = response.json();
+    
+    expect(response.statusCode).toBe(200);
+    expect(body.user.id).toBe('usr_wa_123');
+    expect(body.profile.fullName).toBe('Patient 3210');
+    expect(body.session.sessionToken).toBeDefined();
+
+    await app.close();
+  });
+
+  it('POST /api/v1/auth/whatsapp/verify rejects invalid OTP with appropriate error', async () => {
+    const app = await createTestApp({
+      depsOverrides: {
+        minimothClient: {
+          verifyOtp: async () => ({
+            success: false,
+            error: 'Invalid or expired verification code',
+            errorCode: 'INVALID_OTP',
+          }),
+        } as any,
+      },
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/whatsapp/verify',
+      payload: {
+        challengeId: 'chg_wa_valid',
+        otp: '000000',
+        phone: '+919876543210',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = response.json();
+    expect(body.error.code).toBe('INVALID_OTP');
+
+    await app.close();
+  });
+
 });

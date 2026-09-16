@@ -7,11 +7,6 @@
     "scheme": "bharatpulselink",
     "orientation": "portrait",
     "icon": "./assets/logo-icon.png",
-    "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F8FAFC"
-    },
     "platforms": [
       "ios",
       "android",
@@ -23,7 +18,6 @@
     },
     "android": {
       "package": "com.akash14102006.bharatpulselinkapp",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo-icon.png",
         "backgroundColor": "#F8FAFC"
@@ -41,6 +35,14 @@
       "expo-dev-client",
       "expo-localization",
       "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F8FAFC"
+        }
+      ],
       [
         "expo-camera",
         {

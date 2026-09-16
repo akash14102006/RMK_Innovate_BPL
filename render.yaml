@@ -1,4 +1,51 @@
 services:
+  # ── 1. Bharat PulseLink Fastify Core Backend (PostgreSQL + PostGIS API) ────
+  - type: web
+    name: bharat-pulselink-api
+    runtime: node
+    plan: starter
+    region: singapore
+    rootDir: "Bharat PulseLink App/backend"
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 20
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: LOG_LEVEL
+        value: info
+      - key: API_PREFIX
+        value: /api/v1
+      - key: CORS_ORIGINS
+        value: "https://hospital.bharatpulselink.in,http://localhost:8081,http://localhost:19006,http://localhost:3000"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_POOL_MIN
+        value: "2"
+      - key: DATABASE_POOL_MAX
+        value: "20"
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_REQUIRED
+        value: "false"
+      - key: DESCOPE_PROJECT_ID
+        sync: false
+      - key: DESCOPE_MANAGEMENT_KEY
+        sync: false
+      - key: GOOGLE_ROUTES_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: STORAGE_PROVIDER
+        value: local
+
+  # ── 2. Hospital Web Portal Backend (Node / Express / MongoDB) ──────────────
   - type: web
     name: bpl-hospital-backend
     runtime: node

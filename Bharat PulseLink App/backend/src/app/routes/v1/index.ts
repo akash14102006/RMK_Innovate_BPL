@@ -18,6 +18,7 @@ import { syncRoutes } from '../../../modules/sync/index.js';
 import { registerQrRoutes } from '../../../modules/qr/index.js';
 import { registerHospitalRoutes } from '../../../modules/hospitals/index.js';
 import { registerRouteRoutes } from '../../../modules/routes/index.js';
+import { registerIvrRoutes } from '../../../modules/ivr/index.js';
 
 export async function registerV1Routes(
   app: FastifyInstance,
@@ -89,6 +90,14 @@ export async function registerV1Routes(
           await registerRouteRoutes(routesRouter, deps);
         },
         { prefix: '/routes' },
+      );
+
+      // ── IVR Internal Telephony Module ─────────────────────────────────────
+      await v1.register(
+        async (ivrRouter: FastifyInstance) => {
+          await registerIvrRoutes(ivrRouter, deps);
+        },
+        { prefix: '/internal/ivr' },
       );
 
       // Defensive compatibility alias for clients with redundant /api/v1 base URL prefix

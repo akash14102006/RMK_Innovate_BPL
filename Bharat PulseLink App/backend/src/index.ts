@@ -29,6 +29,7 @@ import { NullStorageClient } from './infrastructure/storage/storage.js';
 import { JobQueueRegistry } from './infrastructure/jobs/queue.js';
 import { systemClock } from './core/utils/clock.js';
 import { DescopeClient } from './infrastructure/auth/DescopeClient.js';
+import { MiniMothClient } from './infrastructure/auth/MiniMothClient.js';
 import { UserRepository } from './infrastructure/database/repositories/UserRepository.js';
 import { IdentityRepository } from './infrastructure/database/repositories/IdentityRepository.js';
 import { IdentityResolver } from './modules/identity/IdentityResolver.js';
@@ -103,6 +104,7 @@ async function start(): Promise<void> {
   const auditRepo = new AuditRepository(db.query);
 
   const descopeClient = new DescopeClient(env.DESCOPE_PROJECT_ID, env.DESCOPE_MANAGEMENT_KEY, logger);
+  const minimothClient = new MiniMothClient(env.MINIMOTH_API_KEY, env.MINIMOTH_BASE_URL, logger);
   const identityResolver = new IdentityResolver(db, userRepo, identityRepo, logger);
 
   // ── Step 4: Redis ─────────────────────────────────────────────────────────
@@ -167,6 +169,7 @@ async function start(): Promise<void> {
     userRepo,
     auditRepo,
     descopeClient,
+    minimothClient,
     logger,
     cache,
     eventEmitter,

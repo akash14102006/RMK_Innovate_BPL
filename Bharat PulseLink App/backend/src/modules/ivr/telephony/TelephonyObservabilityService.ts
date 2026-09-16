@@ -177,7 +177,7 @@ export class TelephonyObservabilityService {
 
   private logInfo(message: string, context: Record<string, unknown>): void {
     if (this.logger) {
-      this.logger.info(context, message);
+      this.logger.info(message, context);
     }
   }
 }

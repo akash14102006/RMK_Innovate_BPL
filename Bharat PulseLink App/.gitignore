@@ -25,3 +25,10 @@ android/local.properties
 # local env
 .env
 
+
+# Backend env
+backend/.env
+backend/.env.local
+.env.local
+*.pem
+*.key

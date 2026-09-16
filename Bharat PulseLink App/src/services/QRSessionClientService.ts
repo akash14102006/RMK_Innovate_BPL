@@ -396,9 +396,9 @@ export class QRSessionClientService {
 
         if (effectiveScopes.includes('EMERGENCY_CONTACT')) {
           approvedData.emergencyContact = {
-            name: draft?.contact?.emergencyContactName || 'Rajesh Sharma',
-            phone: draft?.contact?.emergencyContactPhone || '+91 98765 43211',
-            relationship: draft?.contact?.emergencyRelationship || 'Brother',
+            name: draft?.emergencyContact?.contactName || (draft as any)?.contact?.emergencyContactName || 'Rajesh Sharma',
+            phone: draft?.emergencyContact?.primaryPhone || (draft as any)?.contact?.emergencyContactPhone || '+91 98765 43211',
+            relationship: draft?.emergencyContact?.relationship || (draft as any)?.contact?.emergencyRelationship || 'Brother',
           };
         }
 

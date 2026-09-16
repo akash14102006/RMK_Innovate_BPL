@@ -51,6 +51,16 @@ describe('GoogleAuthProvider', () => {
   });
 
   it('authenticates successfully in test mode with test_ prefix', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        user: { id: 'usr_test_google', status: 'ACTIVE' },
+        profile: { id: 'pat_test_google', fullName: 'Bharat Patient', status: 'ACTIVE', isComplete: true },
+        session: { sessionId: 'sess_test_google', sessionToken: 'test_token_user_123', expiresAt: Date.now() + 3600000 },
+        isNewUser: false,
+      }),
+    }) as any;
+
     const testProvider = new GoogleAuthProvider('test_descope_project_123');
     expect(await testProvider.isAvailable()).toBe(true);
 

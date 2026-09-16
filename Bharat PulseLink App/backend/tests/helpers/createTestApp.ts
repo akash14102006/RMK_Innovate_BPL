@@ -13,6 +13,7 @@ import { FixedClock } from '../../src/core/utils/clock.js';
 import { type AppDependencies } from '../../src/app/container.js';
 import { type Env } from '../../src/config/env.js';
 import { DescopeClient } from '../../src/infrastructure/auth/DescopeClient.js';
+import { MiniMothClient } from '../../src/infrastructure/auth/MiniMothClient.js';
 import { IdentityResolver } from '../../src/modules/identity/IdentityResolver.js';
 import { UserRepository } from '../../src/infrastructure/database/repositories/UserRepository.js';
 import { IdentityRepository } from '../../src/infrastructure/database/repositories/IdentityRepository.js';
@@ -162,6 +163,8 @@ export async function createTestApp(options?: {
     userRepo,
     auditRepo,
     descopeClient: new DescopeClient(undefined, undefined, logger),
+    minimothClient: options?.depsOverrides?.minimothClient ?? new MiniMothClient(undefined, undefined, logger),
+    minimothClient: new MiniMothClient(undefined, undefined, logger),
     logger,
   });
 
@@ -198,6 +201,7 @@ export async function createTestApp(options?: {
     jobs: null,
     clock: new FixedClock(options?.clockDate ?? new Date('2025-01-01T00:00:00Z')),
     descopeClient: new DescopeClient(undefined, undefined, logger),
+    minimothClient: new MiniMothClient(undefined, undefined, logger),
     identityResolver,
     patientService,
     consentAuthorizer,

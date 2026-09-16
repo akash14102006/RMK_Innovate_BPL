@@ -1,5 +1,17 @@
-import { AUTH_TYPES_VERSION, IOtpAuthProvider, AuthProviderType, AuthResult, OtpChallenge } from './types';
+/**
+ * WhatsApp OTP Authentication Provider
+ *
+ * Client adapter for server-authoritative WhatsApp/SMS OTP authentication
+ * backed by MiniMoth via the Bharat PulseLink backend endpoints:
+ * - POST /api/v1/auth/whatsapp/send
+ * - POST /api/v1/auth/whatsapp/verify
+ *
+ * Owned by: Authentication & Identity Domain (Prompt 88, 89)
+ */
+
+import { IOtpAuthProvider, AuthProviderType, AuthResult, OtpChallenge } from './types';
 import IdentityExchangeService from './IdentityExchangeService';
+import { resolveApiBaseUrl } from '../utils/apiUrl';
 
 export class WhatsAppOtpProvider implements IOtpAuthProvider {
   readonly providerType: AuthProviderType = 'whatsapp';
@@ -46,38 +58,115 @@ export class WhatsAppOtpProvider implements IOtpAuthProvider {
     };
   }
 
-  async requestOtp(phoneInput: string): Promise<{ success: boolean; challenge?: OtpChallenge; error?: string }> {
+  /**
+   * Requests an OTP code to be sent to the given phone number via WhatsApp.
+   * Calls the backend API (POST /api/v1/auth/whatsapp/send) which interfaces with MiniMoth.
+   */
+  async requestOtp(
+    phoneInput: string
+  ): Promise<{ success: boolean; challenge?: OtpChallenge; error?: string; errorCode?: string }> {
     const normalized = WhatsAppOtpProvider.normalizePhoneNumber(phoneInput);
     if (!/^\+91[6-9][0-9]{9}$/.test(normalized)) {
       return {
         success: false,
+        errorCode: 'INVALID_PHONE',
         error: 'Please enter a valid 10-digit Indian mobile number',
       };
     }
 
-    const now = Date.now();
-    const challenge: OtpChallenge = {
-      challengeId: 'chg_wa_' + Math.random().toString(36).substring(2, 9),
-      phoneE164: normalized,
-      maskedPhone: WhatsAppOtpProvider.maskPhoneNumber(normalized),
-      expiresAt: now + 5 * 60 * 1000, // 5 minutes validity
-      resendAvailableAt: now + 30 * 1000, // 30 seconds resend cooldown
-      attemptsRemaining: 3,
-    };
+    const apiBase = resolveApiBaseUrl();
 
-    console.log('[WHATSAPP_OTP] OTP_CHALLENGE_CREATED', { challengeId: challenge.challengeId, masked: challenge.maskedPhone });
-    return { success: true, challenge };
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const sendUrl = apiBase.endsWith('/api/v1')
+        ? `${apiBase}/auth/whatsapp/send`
+        : `${apiBase}/api/v1/auth/whatsapp/send`;
+
+      const res = await fetch(sendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ phone: normalized }),
+        signal: controller.signal,
+      })
+        .finally(() => clearTimeout(timeoutId))
+        .catch((err) => {
+          console.warn('[WHATSAPP_OTP] Send network error:', err?.message);
+          return null;
+        });
+
+      if (res && res.ok) {
+        const data = (await res.json()) as {
+          challengeId: string;
+          maskedPhone: string;
+          deliveryChannel: 'whatsapp' | 'sms' | 'unknown';
+          expiresAt: number;
+          resendAvailableAt: number;
+        };
+
+        const challenge: OtpChallenge = {
+          challengeId: data.challengeId,
+          phoneE164: normalized,
+          maskedPhone: data.maskedPhone || WhatsAppOtpProvider.maskPhoneNumber(normalized),
+          deliveryChannel: data.deliveryChannel,
+          expiresAt: data.expiresAt || (Date.now() + 5 * 60 * 1000),
+          resendAvailableAt: data.resendAvailableAt || (Date.now() + 30 * 1000),
+          attemptsRemaining: 5,
+        };
+
+        console.log('[WHATSAPP_OTP] OTP_CHALLENGE_CREATED', {
+          challengeId: challenge.challengeId,
+          masked: challenge.maskedPhone,
+          channel: challenge.deliveryChannel,
+        });
+
+        return { success: true, challenge };
+      }
+
+      if (res && !res.ok) {
+        const errJson = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
+        return {
+          success: false,
+          errorCode: errJson?.error?.code || 'OTP_SEND_FAILED',
+          error: errJson?.error?.message || "We couldn't send the verification code. Please try again.",
+        };
+      }
+
+      return {
+        success: false,
+        errorCode: 'NETWORK_ERROR',
+        error: 'Unable to reach the verification server. Please check your connection.',
+      };
+    } catch (err: any) {
+      console.error('[WHATSAPP_OTP] Request OTP exception:', err);
+      return {
+        success: false,
+        errorCode: 'INTERNAL_ERROR',
+        error: err?.message || 'Failed to request verification code. Please try again.',
+      };
+    }
   }
 
-  async verifyOtp(challengeId: string, otp: string): Promise<AuthResult> {
+  /**
+   * Verifies the 6-digit OTP code against the backend.
+   */
+  async verifyOtp(challengeId: string, otp: string, phoneE164?: string): Promise<AuthResult> {
     if (!challengeId) {
-      return { success: false, error: 'Invalid authentication session' };
+      return { success: false, errorCode: 'INVALID_CHALLENGE', error: 'Invalid authentication session' };
     }
-    if (!otp || otp.length !== 6) {
-      return { success: false, error: 'Please enter a valid 6-digit code' };
+    if (!otp || !/^\d{6}$/.test(otp)) {
+      return { success: false, errorCode: 'INVALID_OTP_FORMAT', error: 'Please enter a valid 6-digit code' };
     }
 
-    return await IdentityExchangeService.exchangeOtpVerification(challengeId, otp, '+919800000000');
+    return await IdentityExchangeService.exchangeOtpVerification(
+      challengeId,
+      otp,
+      phoneE164 || '+919876543210'
+    );
   }
 }
 

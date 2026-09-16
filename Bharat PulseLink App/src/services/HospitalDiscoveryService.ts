@@ -307,8 +307,17 @@ export class HospitalDiscoveryService {
       });
 
       let items: HospitalSummaryItem[] = (response.data?.data || []).map((h) => {
-        const isGovt = h.hospitalCategory === 'Public/ Government' || h.hospitalCategory === 'Public';
-        const isPvt = h.hospitalCategory === 'Private';
+        const cat = String(h.hospitalCategory || '');
+        const care = String(h.hospitalCareType || '');
+        const isGovt =
+          cat === 'Public/ Government' ||
+          cat === 'Public' ||
+          /gov|public/i.test(cat) ||
+          /gov|public/i.test(care);
+        const isPvt =
+          cat === 'Private' ||
+          /private|pvt/i.test(cat) ||
+          /private|pvt/i.test(care);
         const is24x7 = Boolean(h.emergencyServices && /24|emergency/i.test(h.emergencyServices));
 
         const specList = h.specialties ? h.specialties.split(',').map((s) => s.trim()).filter(Boolean) : [];

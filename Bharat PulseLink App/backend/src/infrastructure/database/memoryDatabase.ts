@@ -256,9 +256,9 @@ export async function createInMemoryPostgres(logger: Logger): Promise<Knex> {
         specialties: 'Cardiology, Trauma, Emergency Medicine',
         facilities: 'ICU, Blood Bank, CT Scan',
         emergency_services: '24x7 Trauma & Emergency',
-        latitude: 13.0827,
-        longitude: 80.2707,
-        location: 'POINT(80.2707 13.0827)',
+        latitude: 13.0818,
+        longitude: 80.2785,
+        location: 'POINT(80.2785 13.0818)',
         coordinate_quality_status: 'VALID_COORDINATE',
       },
       {

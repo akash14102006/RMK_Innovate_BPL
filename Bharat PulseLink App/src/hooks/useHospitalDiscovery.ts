@@ -86,29 +86,45 @@ export const useHospitalDiscovery = () => {
           });
 
           if (coords) {
-            const geoMeta = await LocationService.reverseGeocode(coords);
-            const resolvedLabel =
-              geoMeta.label && geoMeta.label !== 'Current Location' && geoMeta.label !== 'Current location'
-                ? geoMeta.label
-                : geoMeta.city && geoMeta.city !== 'Current Location' && geoMeta.city !== 'Current location'
-                ? `${geoMeta.city}, ${geoMeta.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '')
-                : 'Current location';
-
-            const freshGpsLoc: GeoLocationState = {
-              label: resolvedLabel,
+            // 1. Immediately establish authoritative GPS coordinates to unblock hospital search
+            const immediateGpsLoc: GeoLocationState = {
+              label: 'Current location',
               isGps: true,
               latitude: coords.latitude,
               longitude: coords.longitude,
-              city: geoMeta.city || 'Current location',
-              district: geoMeta.district,
-              state: geoMeta.state,
-              pincode: geoMeta.pincode,
+              city: 'Current location',
             };
 
-            setLocation(freshGpsLoc);
-            await LocationService.saveSelectedLocation(freshGpsLoc);
-            await HospitalDiscoveryService.saveSelectedLocation(freshGpsLoc);
+            setLocation(immediateGpsLoc);
+            await LocationService.saveSelectedLocation(immediateGpsLoc);
+            await HospitalDiscoveryService.saveSelectedLocation(immediateGpsLoc);
             isResolvingLocation.current = false;
+
+            // 2. Asynchronously and independently refine human-readable location label in the background
+            LocationService.reverseGeocode(coords)
+              .then((geoMeta) => {
+                if (geoMeta) {
+                  const resolvedLabel =
+                    geoMeta.label && geoMeta.label !== 'Current Location' && geoMeta.label !== 'Current location'
+                      ? geoMeta.label
+                      : geoMeta.city && geoMeta.city !== 'Current Location' && geoMeta.city !== 'Current location'
+                      ? `${geoMeta.city}, ${geoMeta.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '')
+                      : 'Current location';
+
+                  if (resolvedLabel && resolvedLabel !== 'Current location') {
+                    setLocation((prev) => ({
+                      ...prev,
+                      label: resolvedLabel,
+                      city: geoMeta.city || prev.city,
+                      district: geoMeta.district || prev.district,
+                      state: geoMeta.state || prev.state,
+                      pincode: geoMeta.pincode || prev.pincode,
+                    }));
+                  }
+                }
+              })
+              .catch(() => {});
+
             return;
           }
         }
@@ -197,7 +213,6 @@ export const useHospitalDiscovery = () => {
       ...HOSPITALS_QUERY_KEY,
       location.latitude,
       location.longitude,
-      location.label,
       activeFilter,
       advancedFilters,
       searchQuery,

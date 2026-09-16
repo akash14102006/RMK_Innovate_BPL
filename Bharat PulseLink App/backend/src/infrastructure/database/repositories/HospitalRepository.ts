@@ -80,7 +80,7 @@ export class HospitalRepository {
     return null;
   }
 
-  async getFacilityDetails(facilityId: string, trx?: Knex.Transaction): Promise<{
+    async getFacilityDetails(facilityId: string, trx?: Knex.Transaction): Promise<{
     facility: FacilityRow;
     contacts: FacilityContactRow[];
     services: ServiceRow[];
@@ -92,20 +92,23 @@ export class HospitalRepository {
     if (!facility) return null;
 
     const [contacts, services, departments, operatingHours] = await Promise.all([
-      db<FacilityContactRow>('facility_contacts').where({ facility_id: facilityId }),
+      db<FacilityContactRow>('facility_contacts').where({ facility_id: facilityId }).catch(() => []),
       db<ServiceRow>('services')
         .join('facility_services', 'services.id', 'facility_services.service_id')
         .where('facility_services.facility_id', facilityId)
         .andWhere('facility_services.status', 'AVAILABLE')
-        .select('services.*'),
+        .select('services.*')
+        .catch(() => []),
       db<DepartmentRow>('departments')
         .join('facility_departments', 'departments.id', 'facility_departments.department_id')
         .where('facility_departments.facility_id', facilityId)
         .andWhere('facility_departments.status', 'ACTIVE')
-        .select('departments.*'),
+        .select('departments.*')
+        .catch(() => []),
       db<FacilityOperatingHoursRow>('facility_operating_hours')
         .where({ facility_id: facilityId })
-        .orderBy('day_of_week', 'asc'),
+        .orderBy('day_of_week', 'asc')
+        .catch(() => []),
     ]);
 
     return {

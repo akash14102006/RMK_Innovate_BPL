@@ -603,7 +603,13 @@ export class LocationService {
   }): Promise<Partial<GeoLocationState>> {
     try {
       if (ExpoLocationModule && ExpoLocationModule.reverseGeocodeAsync) {
-        const results = await ExpoLocationModule.reverseGeocodeAsync(coords);
+        const timeoutPromise = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), 2500)
+        );
+
+        const geocodePromise = ExpoLocationModule.reverseGeocodeAsync(coords).catch(() => null);
+
+        const results = await Promise.race([geocodePromise, timeoutPromise]);
         if (results && results.length > 0) {
           const item = results[0];
           const city = item.city || item.subregion || item.district || undefined;
@@ -640,7 +646,10 @@ export class LocationService {
         }
       }
     } catch (err) {
-      console.warn('[LOCATION_SERVICE] Reverse geocoding failed, using coordinates fallback:', err);
+      // Non-blocking presentation fallback: do not log intrusive warning
+      if (__DEV__) {
+        console.log('[LOCATION_SERVICE] Reverse geocode non-blocking fallback applied:', err);
+      }
     }
 
     return {

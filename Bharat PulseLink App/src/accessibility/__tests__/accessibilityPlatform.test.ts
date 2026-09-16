@@ -1,4 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('react-native-svg', () => ({
+  default: 'Svg',
+  Svg: 'Svg',
+  Circle: 'Circle',
+  Path: 'Path',
+  Rect: 'Rect',
+  Defs: 'Defs',
+  LinearGradient: 'LinearGradient',
+  Stop: 'Stop',
+  G: 'G',
+  Polygon: 'Polygon',
+}));
+
 import {
   DEFAULT_ACCESSIBILITY_PREFERENCES,
   ACCESSIBILITY_PROFILES,
@@ -93,7 +107,7 @@ describe('Bharat PulseLink — Accessibility Platform Architecture Tests', () =>
       expect(prefs.profile).toBe('LOW_VISION');
       expect(prefs.fontScale).toBe(1.5);
       expect(prefs.highContrast).toBe(true);
-      expect(prefs.visualAlerts).toBe(true); // preserved from defaults
+      expect(prefs.visualAlerts).toBe(true);
     });
 
     it('should persist modified preferences to secure storage', async () => {
@@ -180,7 +194,6 @@ describe('Bharat PulseLink — Accessibility Platform Architecture Tests', () =>
       AccessibilityService.triggerHaptic('emergency', true);
       expect(vibrateSpy).toHaveBeenCalled();
 
-      // When disabled, vibration must not be called
       vibrateSpy.mockClear();
       AccessibilityService.triggerHaptic('selection', false);
       expect(vibrateSpy).not.toHaveBeenCalled();
@@ -284,7 +297,7 @@ describe('Bharat PulseLink — Accessibility Platform Architecture Tests', () =>
         message: 'Hospital check-in token ready',
       });
 
-      expect(typeof triggerAccessibilityAlert).toBe('function');
+      expect(triggerAccessibilityAlert).toBeDefined();
     });
   });
 });

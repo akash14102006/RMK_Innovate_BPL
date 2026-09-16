@@ -6,6 +6,9 @@
  * font scaling factors, and multi-sensory accommodations.
  */
 
+import { AccessibilityCapabilities } from './capabilities';
+import { VoiceCommandResult } from './voiceCommandParser';
+
 export type AccessibilityProfile =
   | 'STANDARD'
   | 'LOW_VISION'
@@ -68,9 +71,6 @@ export interface AccessibilityPreferences {
   lastUpdatedISO: string;
 }
 
-import { AccessibilityCapabilities } from './capabilities';
-import { VoiceCommandResult } from './voiceCommandParser';
-
 export interface AccessibilityContextType {
   preferences: AccessibilityPreferences;
   activeProfile: AccessibilityProfile;
@@ -99,4 +99,3 @@ export interface AccessibilityContextType {
   openQuickPanel: () => void;
   closeQuickPanel: () => void;
 }
-

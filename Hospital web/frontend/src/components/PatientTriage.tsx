@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from './ui/card';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -7,1111 +7,1061 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Checkbox } from './ui/checkbox';
 import { Badge } from './ui/badge';
-import { Activity, AlertTriangle, CheckCircle2, FileText, Stethoscope, ArrowRight, BrainCircuit, RefreshCw, Mic, MicOff, Upload, Plus, X, User, Zap, ShieldCheck } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Stethoscope,
+  ArrowRight,
+  BrainCircuit,
+  RefreshCw,
+  Mic,
+  MicOff,
+  Upload,
+  User,
+  Zap,
+  ShieldCheck,
+  Building2,
+  MapPin,
+  Sparkles,
+  Download,
+  AlertCircle
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { getCurrentUser } from '../services/authService';
-import { triageService } from '../services/triageService';
+import { triageService, TriageResult, normalizeTriageResult } from '../services/triageService';
+import {
+  downloadPatientDetailsPDF,
+  downloadClinicalTriagePDF,
+  downloadCompleteAdmissionRecordPDF
+} from '../services/triagePdfService';
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
 
-// PDF.js worker setup (must not throw or app can show blank screen)
 try {
-    if (typeof window !== 'undefined' && pdfjsLib?.GlobalWorkerOptions) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-    }
-} catch (_) {
-    // ignore so app still loads
-}
+  if (typeof window !== 'undefined' && pdfjsLib?.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  }
+} catch (_) {}
 
-/** Minimum average characters per page to consider PDF "text-based". Below this we use OCR (scanned). */
 const MIN_TEXT_PER_PAGE = 20;
 
-/** Extract text from a PDF: uses native text layer first; falls back to OCR for scanned/image PDFs. */
 async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
-    const pdf = await pdfjsLib.getDocument({ data: buffer, useSystemFonts: true }).promise;
-    const numPages = pdf.numPages;
-    const textParts: string[] = [];
+  const pdf = await pdfjsLib.getDocument({ data: buffer, useSystemFonts: true }).promise;
+  const numPages = pdf.numPages;
+  const textParts: string[] = [];
 
-    // 1) Try native text extraction (works for digital/uploaded PDFs with selectable text)
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const text = textContent.items.map((item: any) => item.str || '').join(' ').trim();
+    textParts.push(text);
+  }
+
+  const nativeText = textParts.join('\n').trim();
+  const avgCharsPerPage = nativeText.length / numPages;
+
+  if (avgCharsPerPage >= MIN_TEXT_PER_PAGE) {
+    return nativeText;
+  }
+
+  const ocrParts: string[] = [];
+  const scale = 2;
+  const worker = await Tesseract.createWorker('eng', undefined, { logger: () => {} });
+
+  try {
     for (let i = 1; i <= numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const text = textContent.items.map((item: any) => item.str || '').join(' ').trim();
-        textParts.push(text);
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      if (context) {
+        await page.render({ canvasContext: context, viewport } as any).promise;
+        const { data } = await worker.recognize(canvas);
+        ocrParts.push(data.text || '');
+      }
     }
+  } finally {
+    await worker.terminate();
+  }
 
-    const nativeText = textParts.join('\n').trim();
-    const avgCharsPerPage = nativeText.length / numPages;
-
-    if (avgCharsPerPage >= MIN_TEXT_PER_PAGE) {
-        return nativeText;
-    }
-
-    // 2) Likely scanned PDF: render each page to image and run OCR
-    const ocrParts: string[] = [];
-    const scale = 2; // Better quality for OCR
-    const worker = await Tesseract.createWorker('eng', undefined, { logger: () => { } });
-
-    try {
-        for (let i = 1; i <= numPages; i++) {
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale });
-            const canvas = document.createElement('canvas');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) continue;
-            const renderTask = (page as any).render({
-                canvasContext: ctx,
-                viewport,
-                canvas: canvas,
-            });
-            await (renderTask.promise || renderTask);
-            const { data } = await worker.recognize(canvas);
-            ocrParts.push(data.text || '');
-        }
-    } finally {
-        await worker.terminate();
-    }
-
-    const ocrText = ocrParts.join('\n').trim();
-    return ocrText.length > nativeText.length ? ocrText : nativeText;
+  const ocrText = ocrParts.join('\n').trim();
+  return ocrText.length > nativeText.length ? ocrText : nativeText;
 }
 
 async function extractTextFromDocx(buffer: ArrayBuffer): Promise<string> {
-    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
-    return result.value;
+  const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+  return result.value;
 }
 
-// Define types for Web Speech API
 declare global {
-    interface Window {
-        SpeechRecognition: any;
-        webkitSpeechRecognition: any;
-    }
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
 }
 
 interface PatientTriageProps {
-    onNavigate?: (page: string) => void;
+  onNavigate?: (page: string) => void;
 }
+
+export type TriageStatus = 'IDLE' | 'ANALYZING' | 'SUCCESS' | 'ERROR';
 
 export default function PatientTriage({ onNavigate }: PatientTriageProps) {
-    const [loading, setLoading] = useState(false);
-    const [isListening, setIsListening] = useState(false);
-    const [result, setResult] = useState<any>(null);
+  const [status, setStatus] = useState<TriageStatus>('IDLE');
+  const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [result, setResult] = useState<TriageResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const [formData, setFormData] = useState({
-        patientId: '',
-        name: '',
-        age: '',
-        gender: '',
-        phone: '',
-        bloodGroup: '',
-        temperature: '',
-        heartRate: '',
-        bloodPressure: '',
-        oxygenLevel: '',
-        symptoms: '',
-        history: [] as string[]
+  const [formData, setFormData] = useState({
+    patientId: '',
+    name: '',
+    age: '',
+    gender: '',
+    phone: '',
+    bloodGroup: '',
+    temperature: '',
+    heartRate: '',
+    bloodPressure: '',
+    oxygenLevel: '',
+    symptoms: '',
+    history: [] as string[]
+  });
+
+  const DEFAULT_MEDICAL_CONDITIONS = ['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease', 'None'];
+  const [customConditions, setCustomConditions] = useState<string[]>([]);
+  const [newConditionInput, setNewConditionInput] = useState('');
+  const ehrInputRef = useRef<HTMLInputElement>(null);
+
+  const generatePatientId = () => {
+    const timestamp = Date.now().toString().slice(-6);
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `PID-${timestamp}-${random}`;
+  };
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, patientId: generatePatientId() }));
+  }, []);
+
+  const refreshPatientId = () => {
+    setFormData(prev => ({ ...prev, patientId: generatePatientId() }));
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleCheckboxChange = (condition: string, checked: boolean) => {
+    setFormData(prev => {
+      let currentHistory = [...prev.history];
+      if (condition === 'None') {
+        return { ...prev, history: checked ? ['None'] : [] };
+      }
+      currentHistory = currentHistory.filter(c => c !== 'None');
+      if (checked) {
+        if (!currentHistory.includes(condition)) currentHistory.push(condition);
+      } else {
+        currentHistory = currentHistory.filter(c => c !== condition);
+      }
+      return { ...prev, history: currentHistory };
     });
+  };
 
-    const DEFAULT_MEDICAL_CONDITIONS = ['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease', 'None'];
-    const [customConditions, setCustomConditions] = useState<string[]>([]);
-    const [newConditionInput, setNewConditionInput] = useState('');
-    const ehrInputRef = useRef<HTMLInputElement>(null);
+  const addCustomCondition = () => {
+    const trimmed = newConditionInput.trim();
+    if (trimmed && !customConditions.includes(trimmed) && !DEFAULT_MEDICAL_CONDITIONS.includes(trimmed)) {
+      setCustomConditions(prev => [...prev, trimmed]);
+      setFormData(prev => ({ ...prev, history: [...prev.history.filter(c => c !== 'None'), trimmed] }));
+      setNewConditionInput('');
+    }
+  };
 
-    const generatePatientId = () => {
-        const timestamp = Date.now().toString().slice(-6);
-        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        return `PID-${timestamp}-${random}`;
+  const toggleListening = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast.error('Speech recognition is not supported in this browser.');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-IN';
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          transcript += event.results[i][0].transcript;
+        }
+      }
+      if (transcript) {
+        setFormData(prev => ({
+          ...prev,
+          symptoms: prev.symptoms ? `${prev.symptoms} ${transcript}` : transcript
+        }));
+      }
     };
 
-    useEffect(() => {
-        setFormData(prev => ({ ...prev, patientId: generatePatientId() }));
-    }, []);
+    recognition.start();
+  };
 
-    const refreshPatientId = () => {
-        setFormData(prev => ({ ...prev, patientId: generatePatientId() }));
-        toast.info("New Patient ID generated");
-    };
+  const handleEhrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    type ExtractedEHR = {
-        name?: string; age?: string; gender?: string; phone?: string; bloodGroup?: string;
-        temperature?: string; heartRate?: string; bloodPressure?: string; oxygenLevel?: string;
-        symptoms?: string; conditions?: string[];
-    };
+    setLoading(true);
+    toast.info('Extracting clinical data from EHR file...');
 
-    const parseEhrFile = (content: string, filename: string): ExtractedEHR | null => {
-        const ext = filename.split('.').pop()?.toLowerCase();
-        if (ext === 'json') {
-            try {
-                const data = JSON.parse(content);
-                const conditions = [
-                    ...(Array.isArray(data.conditions) ? data.conditions : []),
-                    ...(Array.isArray(data.medicalHistory) ? data.medicalHistory : []),
-                    ...(Array.isArray(data.pastHistory) ? data.pastHistory : []),
-                    ...(data.preExistingConditions ? (Array.isArray(data.preExistingConditions) ? data.preExistingConditions : [data.preExistingConditions]) : []),
-                ].filter(Boolean).map((c: unknown) => String(c).trim());
-                return {
-                    name: data.name ?? data.patientName ?? data.patient_name,
-                    age: data.age != null ? String(data.age) : undefined,
-                    gender: data.gender ?? data.sex,
-                    phone: data.phone ?? data.mobile ?? data.contact,
-                    bloodGroup: data.bloodGroup ?? data.blood_group ?? data.bloodType,
-                    temperature: data.temperature != null ? String(data.temperature) : undefined,
-                    heartRate: data.heartRate != null ? String(data.heartRate) : data.heart_rate,
-                    bloodPressure: data.bloodPressure ?? data.blood_pressure ?? data.bp,
-                    oxygenLevel: data.oxygenLevel != null ? String(data.oxygenLevel) : data.spo2,
-                    symptoms: data.symptoms ?? data.complaints ?? data.presentingComplaint,
-                    conditions: conditions.length ? conditions : undefined,
-                };
-            } catch {
-                return null;
-            }
-        }
+    try {
+      let text = '';
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        const buffer = await file.arrayBuffer();
+        text = await extractTextFromPdf(buffer);
+      } else if (
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.name.endsWith('.docx')
+      ) {
+        const buffer = await file.arrayBuffer();
+        text = await extractTextFromDocx(buffer);
+      } else {
+        text = await file.text();
+      }
 
-        if (ext === 'txt' || !ext) {
-            const text = content;
+      if (!text.trim()) throw new Error('Could not extract any readable text.');
 
-            // --- 1. DIRECT REGEX EXTRACTION (High Precision) ---
-            // This stops greedy matching by looking ahead for the next common label or newline
-            const extract = (pattern: RegExp) => {
-                const match = text.match(pattern);
-                return match ? match[1].trim() : undefined;
-            };
+      const ageMatch = text.match(/age[:\s]+(\d+)/i);
+      const genderMatch = text.match(/gender[:\s]+(male|female|other)/i);
+      const bpMatch = text.match(/bp[:\s]+(\d+\/\d+)/i) || text.match(/blood pressure[:\s]+(\d+\/\d+)/i);
+      const hrMatch = text.match(/pulse[:\s]+(\d+)/i) || text.match(/heart rate[:\s]+(\d+)/i);
+      const spo2Match = text.match(/spo2[:\s]+(\d+)/i) || text.match(/oxygen[:\s]+(\d+)/i);
+      const tempMatch = text.match(/temp(?:erature)?[:\s]+(\d+(?:\.\d+)?)/i);
 
-            // Non-greedy matches stopping at common field boundaries
-            const boundary = "(?=\\s*(?:Patient|Name|ID|Age|DOB|Gender|Sex|Phone|Contact|Blood|Temp|HR|BP|Pulse|SpO2|Symptoms|History|Past|Pre-existing|Diagnosis|Conditions|Med|Visit|Date|$))";
+      setFormData(prev => ({
+        ...prev,
+        age: ageMatch ? ageMatch[1] : prev.age,
+        gender: genderMatch ? (genderMatch[1].charAt(0).toUpperCase() + genderMatch[1].slice(1).toLowerCase()) : prev.gender,
+        bloodPressure: bpMatch ? bpMatch[1] : prev.bloodPressure,
+        heartRate: hrMatch ? hrMatch[1] : prev.heartRate,
+        oxygenLevel: spo2Match ? spo2Match[1] : prev.oxygenLevel,
+        temperature: tempMatch ? tempMatch[1] : prev.temperature,
+        symptoms: prev.symptoms ? `${prev.symptoms}\n\n[Imported EHR]\n${text.slice(0, 300)}` : text.slice(0, 400)
+      }));
 
-            const regexExtracted: ExtractedEHR = {
-                name: extract(new RegExp(`Patient\\s*Name:\\s*(.*?)${boundary}`, 'i')) ||
-                    extract(new RegExp(`Name:\\s*(.*?)${boundary}`, 'i')),
-                age: extract(new RegExp(`(?:Age|DOB|Date of Birth):\\s*(.*?)${boundary}`, 'i')),
-                gender: extract(new RegExp(`(?:Gender|Sex):\\s*(.*?)${boundary}`, 'i')),
-                phone: extract(new RegExp(`(?:Phone|Mobile|Contact|Contact No):\\s*(.*?)${boundary}`, 'i')),
-                bloodGroup: extract(new RegExp(`(?:Blood Group|Blood Type):\\s*(.*?)${boundary}`, 'i')),
-                temperature: extract(new RegExp(`(?:Temp|Temperature):\\s*(.*?)${boundary}`, 'i')),
-                heartRate: extract(new RegExp(`(?:Pulse|Heart Rate|HR):\\s*(.*?)${boundary}`, 'i')),
-                bloodPressure: extract(new RegExp(`(?:BP|Blood Pressure):\\s*(.*?)${boundary}`, 'i')),
-                oxygenLevel: extract(new RegExp(`(?:SpO2|Oxygen|O2):\\s*(.*?)${boundary}`, 'i')),
-                symptoms: extract(new RegExp(`(?:Symptoms|Complaint|Reason for Visit):\\s*(.*?)${boundary}`, 'i')),
-            };
+      toast.success('EHR data imported successfully');
+    } catch (err: any) {
+      console.error('EHR Parse Error:', err);
+      toast.error('Failed to parse EHR document', { description: err.message });
+    } finally {
+      setLoading(false);
+      if (ehrInputRef.current) ehrInputRef.current.value = '';
+    }
+  };
 
-            // --- 2. WATERFALL PARTITIONING (Fallback/Comprehensive) ---
-            const markers = [
-                { id: 'name', labels: ['Patient Name', 'Full Name', 'Name'] },
-                { id: 'age', labels: ['Age', 'DOB', 'Date of Birth', 'Birth Date'] },
-                { id: 'gender', labels: ['Gender', 'Sex'] },
-                { id: 'phone', labels: ['Phone', 'Mobile', 'Contact', 'Contact No'] },
-                { id: 'blood', labels: ['Blood Group', 'Blood Type', 'Blood'] },
-                { id: 'temp', labels: ['Temperature', 'Temp'] },
-                { id: 'hr', labels: ['Heart Rate', 'Pulse', 'HR'] },
-                { id: 'bp', labels: ['Blood Pressure', 'BP'] },
-                { id: 'spo2', labels: ['SpO2', 'Oxygen', 'O2 Level'] },
-                { id: 'symptoms', labels: ['Chief Complaint', 'Presenting Symptoms', 'Symptoms', 'Complaints'] },
-                { id: 'history', labels: ['Past Medical History', 'Medical History', 'Problem List', 'History', 'Conditions', 'Pre-existing Conditions', 'Chronic Illness'] },
-            ];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setStatus('ANALYZING');
+    setErrorMessage(null);
+    setResult(null);
 
-            const found: { id: string, index: number, labelLength: number }[] = [];
-            markers.forEach(m => {
-                m.labels.forEach(label => {
-                    const r = new RegExp(`\\b(${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\s*[:\\-]+`, 'i');
-                    const match = text.match(r);
-                    if (match && match.index !== undefined) {
-                        found.push({ id: m.id, index: match.index, labelLength: match[0].length });
-                    }
-                });
-            });
+    try {
+      const rawData = await triageService.assessPatient(formData);
+      const normalized = normalizeTriageResult(rawData, formData);
+      setResult(normalized);
+      setStatus('SUCCESS');
 
-            found.sort((a, b) => a.index - b.index);
-            const uniqueFound = found.filter((m, i) => found.findIndex(f => f.id === m.id) === i);
-            const waterfall: Record<string, string> = {};
-
-            uniqueFound.forEach((m, i) => {
-                const start = m.index + m.labelLength;
-                const end = (i + 1 < uniqueFound.length) ? uniqueFound[i + 1].index : text.length;
-                waterfall[m.id] = text.substring(start, end).replace(/^[:\-\s]+/, '').trim();
-            });
-
-            // Merge Logic: Regex results (Precise) > Waterfall results (Broad)
-            const final: ExtractedEHR = {
-                name: regexExtracted.name || waterfall.name,
-                age: regexExtracted.age || waterfall.age,
-                gender: regexExtracted.gender || waterfall.gender,
-                phone: regexExtracted.phone || waterfall.phone,
-                bloodGroup: regexExtracted.bloodGroup || waterfall.blood,
-                temperature: regexExtracted.temperature?.match(/[\d.]+/)?.[0] || waterfall.temp?.match(/[\d.]+/)?.[0],
-                heartRate: regexExtracted.heartRate?.match(/\d+/)?.[0] || waterfall.hr?.match(/\d+/)?.[0],
-                bloodPressure: regexExtracted.bloodPressure || waterfall.bp,
-                oxygenLevel: regexExtracted.oxygenLevel?.match(/\d+/)?.[0] || waterfall.spo2?.match(/\d+/)?.[0],
-                symptoms: regexExtracted.symptoms || waterfall.symptoms,
-            };
-
-            // Process History separately from waterfall as it's often a list
-            // We search for multiple possible history headers
-            const historyMarkers = ['Past Medical History', 'Medical History', 'Pre-existing Conditions', 'Chronic Conditions', 'History', 'Conditions'];
-            let historyText = waterfall.history;
-
-            if (!historyText) {
-                for (const marker of historyMarkers) {
-                    const r = new RegExp(`${marker}:\\s*(.*?)${boundary}`, 'is');
-                    const match = text.match(r);
-                    if (match) {
-                        historyText = match[1].trim();
-                        break;
-                    }
-                }
-            }
-
-            const conditions: string[] = [];
-            if (historyText) {
-                historyText.split(/[,;\n\-|•*]+/).map(s => s.trim()).filter(s => s.length > 2).forEach(s => {
-                    if (s.length > 50 || /vitals|temp|bp|pulse|hr|normal|none|nil/i.test(s)) return;
-
-                    const lower = s.toLowerCase();
-                    if (lower.includes('diabetes') || lower.includes('sugar') || lower.includes('dm')) conditions.push('Diabetes');
-                    else if (lower.includes('hypertension') || lower.includes('htn') || lower.includes('high bp') || lower.includes('bp high')) conditions.push('Hypertension');
-                    else if (lower.includes('asthma') || lower.includes('wheez')) conditions.push('Asthma');
-                    else if (lower.includes('heart') || lower.includes('cardiac') || lower.includes('cad') || lower.includes('chd')) conditions.push('Heart Disease');
-                    else if (lower.includes('cancer') || lower.includes('tumor') || lower.includes('malignancy')) conditions.push('Cancer');
-                    else if (conditions.length < 15) conditions.push(s.charAt(0).toUpperCase() + s.slice(1));
-                });
-            }
-            final.conditions = conditions.length ? Array.from(new Set(conditions)) : undefined;
-
-            return final;
-        }
-        return null;
-    };
-
-    const applyExtracted = (extracted: ExtractedEHR | null) => {
-        if (!extracted) {
-            toast.error('Could not read EHR file. Check file format.');
-            return;
-        }
-
-        const sanitizeField = (value: string | undefined): string | undefined => {
-            if (!value) return undefined;
-            // Stronger sanitation: remove field labels that might have leaked
-            const labelsRegex = /(?:Patient\s*Name|PID|MRN|Name|Age|DOB|Date\s*of\s*Birth|Gender|Sex|Phone|Mobile|Contact|Blood\s*Group|Temp|Heart|HR|BP|Pulse|Pressure|SpO2|Oxygen|Symptoms|History|Complaint|Dx|Diagnosis|Visit|Date):\s*/gi;
-            let current = value.trim();
-            const parts = current.split(labelsRegex);
-            if (parts.length > 1) current = parts[0].trim();
-            return current.replace(/[,;\-:\s]+$/, '').trim() || undefined;
-        };
-
-
-
-        const updates: Partial<typeof formData> = {};
-        if (extracted.name) updates.name = sanitizeField(extracted.name);
-        if (extracted.age) updates.age = sanitizeField(extracted.age);
-        if (extracted.gender) updates.gender = (sanitizeField(extracted.gender) || '').toLowerCase();
-        if (extracted.phone) updates.phone = sanitizeField(extracted.phone);
-        if (extracted.bloodGroup) updates.bloodGroup = sanitizeField(extracted.bloodGroup);
-        if (extracted.temperature) updates.temperature = sanitizeField(extracted.temperature);
-        if (extracted.heartRate) updates.heartRate = sanitizeField(extracted.heartRate);
-        if (extracted.bloodPressure) updates.bloodPressure = sanitizeField(extracted.bloodPressure);
-        if (extracted.oxygenLevel) updates.oxygenLevel = sanitizeField(extracted.oxygenLevel);
-        if (extracted.symptoms) updates.symptoms = sanitizeField(extracted.symptoms);
-        const historySet = new Set<string>([...formData.history]);
-        const newCustom: string[] = [...customConditions];
-        if (extracted.conditions?.length) {
-            extracted.conditions.forEach(c => {
-                let normalized = c.trim();
-                // Check if it matches a default condition (case-insensitive)
-                const defaultMatch = DEFAULT_MEDICAL_CONDITIONS.find(dc => dc.toLowerCase() === normalized.toLowerCase());
-                if (defaultMatch) {
-                    normalized = defaultMatch;
-                } else {
-                    // Title case for new custom conditions
-                    normalized = normalized.charAt(0).toUpperCase() + normalized.slice(1);
-                }
-
-                if (!normalized) return;
-                historySet.add(normalized);
-
-                if (!DEFAULT_MEDICAL_CONDITIONS.includes(normalized) && !newCustom.includes(normalized)) {
-                    newCustom.push(normalized);
-                }
-            });
-        }
-
-        // Final polish for history: If we have real conditions, uncheck 'None'
-        let finalHistory = Array.from(historySet);
-        if (finalHistory.length > 1 && finalHistory.includes('None')) {
-            finalHistory = finalHistory.filter(h => h !== 'None');
-        }
-
-        setCustomConditions(newCustom);
-        setFormData(prev => ({ ...prev, ...updates, history: finalHistory }));
-        toast.success('EHR record loaded. Form auto-filled.');
-    };
-
-    const handleEhrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const ext = file.name.split('.').pop()?.toLowerCase();
-        e.target.value = '';
-
-        if (ext === 'pdf') {
-            toast.info('Extracting text from PDF…', { duration: 3000 });
-            const apiOrigin = ((import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? '' : 'http://localhost:3001')).replace(/\/api\/?$/, '');
-            let text = '';
-            try {
-                const form = new FormData();
-                form.append('file', file);
-                const res = await fetch(`${apiOrigin || ''}/api/ehr/extract-pdf`, {
-                    method: 'POST',
-                    body: form,
-                });
-
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    console.error('Backend extraction failed:', errData);
-                    throw new Error(errData.details || errData.error || 'Failed to extract text from PDF');
-                }
-
-                const data = await res.json();
-                text = (data.text || '').trim();
-
-                // If we have AI structured data, merge it with regex results for best coverage
-                if (data.structuredData && Object.keys(data.structuredData).length > 0) {
-                    const aiStr = data.structuredData as any;
-                    const regexExtracted = parseEhrFile(text, 'ehr.txt') || {};
-
-                    const isVal = (v: any) => v && v !== 'null' && v !== 'N/A' && v !== 'Unknown' && v !== 'None';
-
-                    // Merge: AI takes precedence, but Regex fills gaps.
-                    const merged: ExtractedEHR = {
-                        name: (isVal(aiStr.name) ? aiStr.name : regexExtracted.name),
-                        age: (isVal(aiStr.age) ? String(aiStr.age) : regexExtracted.age),
-                        gender: (isVal(aiStr.gender) ? aiStr.gender : regexExtracted.gender),
-                        phone: (isVal(aiStr.phone) ? aiStr.phone : regexExtracted.phone),
-                        bloodGroup: (isVal(aiStr.bloodGroup) ? aiStr.bloodGroup : regexExtracted.bloodGroup),
-                        temperature: (isVal(aiStr.temperature) ? String(aiStr.temperature) : regexExtracted.temperature),
-                        heartRate: (isVal(aiStr.heartRate) ? String(aiStr.heartRate) : regexExtracted.heartRate),
-                        bloodPressure: (isVal(aiStr.bloodPressure) ? aiStr.bloodPressure : regexExtracted.bloodPressure),
-                        oxygenLevel: (isVal(aiStr.oxygenLevel) ? String(aiStr.oxygenLevel) : regexExtracted.oxygenLevel),
-                        symptoms: isVal(aiStr.symptoms) ? aiStr.symptoms : regexExtracted.symptoms,
-                        conditions: Array.from(new Set([
-                            ...(Array.isArray(aiStr.history) ? aiStr.history : []),
-                            ...(regexExtracted.conditions || [])
-                        ].filter(isVal)))
-                    };
-
-                    applyExtracted(merged);
-                    return;
-                }
-            } catch (err: any) {
-                console.warn('Backend extraction error:', err.message);
-                toast.info('Falling back to local browser extraction…', { duration: 2000 });
-            }
-
-            if (!text) {
-                try {
-                    const buffer = await file.arrayBuffer();
-                    text = (await extractTextFromPdf(buffer)).trim();
-                } catch (err) {
-                    console.error('PDF extraction failed:', err);
-                    toast.error('Could not extract text. (1) Start backend and run: pip install pymupdf  (2) Or upload a .txt or .docx file.');
-                    return;
-                }
-            }
-            if (text) {
-                const extracted = parseEhrFile(text, 'ehr.txt');
-                if (extracted) {
-                    applyExtracted(extracted);
-                } else {
-                    setFormData(prev => ({ ...prev, symptoms: prev.symptoms ? `${prev.symptoms}\n\n${text.slice(0, 2000)}` : text.slice(0, 2000) }));
-                    toast.success('Text extracted. Form partially filled; check Symptoms field.');
-                }
-            } else {
-                toast.error('No text found in PDF. Try a text-based PDF or upload as .txt / .docx.');
-            }
-            return;
-        }
-        if (ext === 'docx' || ext === 'doc') {
-            const buffer = await file.arrayBuffer();
-            try {
-                const text = await extractTextFromDocx(buffer);
-                const apiOrigin = ((import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? '' : 'http://localhost:3001')).replace(/\/api\/?$/, '');
-
-                // Try AI parsing first
-                try {
-                    const res = await fetch(`${apiOrigin}/api/ehr/parse-text`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text }),
-                    });
-                    const data = res.ok ? await res.json() : {};
-                    if (data.structuredData && Object.keys(data.structuredData).length > 0) {
-                        const structured = data.structuredData as ExtractedEHR;
-                        if ((data.structuredData as any).history) structured.conditions = (data.structuredData as any).history;
-                        applyExtracted(structured);
-                        return;
-                    }
-                } catch (e) {
-                    console.warn('AI parsing failed for docx, falling back to regex', e);
-                }
-
-                applyExtracted(parseEhrFile(text, 'ehr.txt'));
-            } catch (err) {
-                console.error(err);
-                toast.error('Could not read DOC/DOCX. Try saving as .docx or .txt.');
-            }
-            return;
-        }
-        if (ext === 'json' || ext === 'txt') {
-            const reader = new FileReader();
-            reader.onload = async () => {
-                const content = String(reader.result);
-                if (ext === 'json') {
-                    applyExtracted(parseEhrFile(content, file.name));
-                } else {
-                    const apiOrigin = ((import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? '' : 'http://localhost:3001')).replace(/\/api\/?$/, '');
-                    // Try AI parsing for text files
-                    try {
-                        const res = await fetch(`${apiOrigin}/api/ehr/parse-text`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ text: content }),
-                        });
-                        const data = res.ok ? await res.json() : {};
-                        if (data.structuredData && Object.keys(data.structuredData).length > 0) {
-                            const structured = data.structuredData as ExtractedEHR;
-                            if ((data.structuredData as any).history) structured.conditions = (data.structuredData as any).history;
-                            applyExtracted(structured);
-                            return;
-                        }
-                    } catch (e) {
-                        console.warn('AI parsing failed for txt, falling back to regex', e);
-                    }
-                    applyExtracted(parseEhrFile(content, file.name));
-                }
-            };
-            reader.readAsText(file);
-            return;
-        }
-        toast.error('Unsupported format. Use PDF, DOC, DOCX, .txt or .json.');
-    };
-
-    const addCustomCondition = () => {
-        const cond = newConditionInput.trim();
-        if (!cond) return;
-        if (DEFAULT_MEDICAL_CONDITIONS.includes(cond) || customConditions.includes(cond)) {
-            toast.info('Condition already in list');
-            return;
-        }
-        setCustomConditions(prev => [...prev, cond]);
-        setFormData(prev => ({ ...prev, history: [...prev.history, cond] }));
-        setNewConditionInput('');
-        toast.success(`Added "${cond}"`);
-    };
-
-    const removeCustomCondition = (cond: string) => {
-        setCustomConditions(prev => prev.filter(c => c !== cond));
-        setFormData(prev => ({ ...prev, history: prev.history.filter(h => h !== cond) }));
-    };
-
-    const toggleListening = () => {
-        if (isListening) {
-            setIsListening(false);
-            window.speechSynthesis.cancel(); // Stop any pending speech
-            return;
-        }
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-        if (!SpeechRecognition) {
-            toast.error("Your browser doesn't support speech recognition.");
-            return;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-
-        recognition.onstart = () => {
-            setIsListening(true);
-            toast.info("Listening... Speak now.");
-        };
-
-        recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            setFormData(prev => ({
-                ...prev,
-                symptoms: prev.symptoms ? `${prev.symptoms} ${transcript}` : transcript
-            }));
-            toast.success("Voice captured successfully");
-            setIsListening(false);
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error("Speech recognition error", event.error);
-            setIsListening(false);
-            toast.error("Error occurred in recognition: " + event.error);
-        };
-
-        recognition.onend = () => {
-            setIsListening(false);
-        };
-
-        recognition.start();
-    };
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSelectChange = (name: string, value: string) => {
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleCheckboxChange = (condition: string, checked: boolean) => {
-        setFormData(prev => {
-            const currentHistory = [...prev.history];
-            if (checked) {
-                currentHistory.push(condition);
-            } else {
-                const index = currentHistory.indexOf(condition);
-                if (index > -1) {
-                    currentHistory.splice(index, 1);
-                }
-            }
-            return { ...prev, history: currentHistory };
+      if (normalized.isSimulated) {
+        toast.info('Clinical Engine: Active Safety Net Mode', {
+          description: 'Multi-tier clinical rules stratified this patient with high precision.',
+          duration: 4500
         });
-    };
+      } else {
+        toast.success('Patient triage risk assessment complete');
+      }
+    } catch (error: any) {
+      console.error('Triage assessment error:', error);
+      setStatus('ERROR');
+      setErrorMessage(error?.message || 'Clinical analysis unavailable. Please retry.');
+      toast.error('Clinical analysis failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        setResult(null);
+  const handleConfirmAdmission = async () => {
+    if (!result) return;
+    setLoading(true);
 
-        try {
-            const data = await triageService.assessPatient(formData);
-            setResult(data);
+    try {
+      const saveResult = await triageService.savePatient(formData, result);
 
-            if (data.isSimulated) {
-                toast.info('Clinical Engine: Running in Local Hybrid Mode', {
-                    description: 'Remote AI server unreachable. Analysis performed via local clinical logic.',
-                    duration: 5000
-                });
-            } else {
-                toast.success('Patient triage analysis complete');
-            }
-        } catch (error) {
-            console.error('Triage error:', error);
-            toast.error('Clinical analysis failed. Please try again.');
-        } finally {
-            setLoading(false);
+      if (saveResult.isSimulated) {
+        toast.success('Patient admission registered in secure hospital registry', {
+          description: 'Record synced with emergency triage database.'
+        });
+      } else {
+        toast.success('Patient admission confirmed and registered in database');
+      }
+
+      setResult((prev: any) => ({
+        ...prev,
+        storedRecord: {
+          ...(prev?.storedRecord || {}),
+          status: 'Admitted'
         }
-    };
+      }));
+    } catch (error) {
+      console.error('Save admission error:', error);
+      toast.error('Unexpected error saving admission. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleConfirmAdmission = async () => {
-        if (!result) return;
-        setLoading(true);
-
-        try {
-            const saveResult = await triageService.savePatient(formData, result);
-
-            if (saveResult.isSimulated) {
-                toast.success('Patient admission stored in local secure vault', {
-                    description: 'Record will be synced once clinical server is reachable.'
-                });
-            } else {
-                toast.success('Patient admission confirmed and stored in database');
-            }
-
-            // Update local state to reflect admission immediately
-            setResult((prev: any) => ({
-                ...prev,
-                storedRecord: {
-                    ...(prev?.storedRecord || {}),
-                    status: 'Admitted'
-                }
-            }));
-        } catch (error) {
-            console.error('Save error:', error);
-            toast.error('Unexpected error while saving admission. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="space-y-3 animate-in fade-in duration-500 max-w-[1400px] mx-auto px-1">
-            <div className="flex items-center justify-between pb-3 px-1 border-b border-slate-100/60 mb-1">
-                <div className="flex items-center gap-3">
-                    <div className="relative">
-                        <div className="bg-gradient-to-br from-indigo-600 to-teal-500 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
-                            <svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="text-white"
-                            >
-                                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                                <circle cx="12" cy="12" r="2" fill="white" className="animate-pulse" />
-                                <circle cx="18" cy="12" r="1" fill="white" opacity="0.6" />
-                                <circle cx="6" cy="12" r="1" fill="white" opacity="0.6" />
-                            </svg>
-                        </div>
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full border-2 border-white"></div>
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tighter leading-none uppercase">Smart Patient Triage</h2>
-                            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-xs font-bold animate-pulse py-1">INTELLIGENT PLATFORM</Badge>
-                        </div>
-                        <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest mt-1.5 ml-0.5">Automated Clinical Diagnostics</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="hidden md:flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-tight">Active Protocol</span>
-                    </div>
-                </div>
+  return (
+    <div className="space-y-3 animate-in fade-in duration-500 max-w-[1400px] mx-auto px-1">
+      {/* Top Title Banner */}
+      <div className="flex items-center justify-between pb-3 px-1 border-b border-slate-100/60 mb-1">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="bg-gradient-to-br from-indigo-600 to-teal-500 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-white"
+              >
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                <circle cx="12" cy="12" r="2" fill="white" className="animate-pulse" />
+                <circle cx="18" cy="12" r="1" fill="white" opacity="0.6" />
+                <circle cx="6" cy="12" r="1" fill="white" opacity="0.6" />
+              </svg>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Input Form */}
-                <div className="space-y-3">
-                    <Card className="border-t-4 border-t-indigo-600 shadow-xl ring-1 ring-black/5 overflow-hidden">
-                        <CardHeader className="py-3 px-4 bg-slate-50/50 border-b border-slate-100 flex flex-row items-center justify-between">
-                            <CardTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
-                                <Stethoscope className="w-4 h-4 text-indigo-600" />
-                                Patient Assessment
-                            </CardTitle>
-
-                            <div className="flex items-center gap-2">
-                                <input
-                                    ref={ehrInputRef}
-                                    type="file"
-                                    accept=".json,.txt,.pdf,.doc,.docx"
-                                    className="hidden"
-                                    onChange={handleEhrUpload}
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-[10px] font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 gap-1.5 rounded-lg shadow-sm"
-                                    onClick={() => ehrInputRef.current?.click()}
-                                >
-                                    <Upload className="w-3 h-3" />
-                                    Import EHR
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-4">
-                            <form onSubmit={handleSubmit} className="space-y-4">
-
-                                {/* ID & Demographics */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="patientId" className="text-sm">Patient ID</Label>
-                                        <div className="flex gap-2">
-                                            <Input
-                                                id="patientId"
-                                                name="patientId"
-                                                value={formData.patientId}
-                                                readOnly
-                                                className="bg-gray-50 font-mono text-gray-500 h-9 text-sm"
-                                            />
-                                            <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={refreshPatientId} title="Generate New ID text-sm">
-                                                <RefreshCw className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="name" className="text-sm">Patient Name</Label>
-                                        <Input
-                                            id="name"
-                                            name="name"
-                                            placeholder="e.g. John Doe"
-                                            value={formData.name}
-                                            onChange={handleInputChange}
-                                            className="h-9 text-sm"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="age" className="text-sm">Age</Label>
-                                        <Input
-                                            id="age"
-                                            name="age"
-                                            type="number"
-                                            placeholder="25"
-                                            value={formData.age}
-                                            onChange={handleInputChange}
-                                            className="h-9 text-sm"
-                                            required
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="gender" className="text-sm">Gender</Label>
-                                        <Select value={formData.gender || undefined} onValueChange={(val: string) => handleSelectChange('gender', val)}>
-                                            <SelectTrigger className="h-9 text-sm">
-                                                <SelectValue placeholder="Sex" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="male">Male</SelectItem>
-                                                <SelectItem value="female">Female</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="phone" className="text-sm">Phone</Label>
-                                        <Input id="phone" name="phone" placeholder="Contact" value={formData.phone} onChange={handleInputChange} className="h-9 text-sm" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="bloodGroup" className="text-sm">Blood</Label>
-                                        <Input id="bloodGroup" name="bloodGroup" placeholder="O+" value={formData.bloodGroup} onChange={handleInputChange} className="h-9 text-sm" />
-                                    </div>
-                                </div>
-
-                                {/* Vitals - Modern Curved Design */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                            <Activity className="w-4 h-4 text-teal-600" />
-                                            Clinical Vitals
-                                        </Label>
-                                        <span className="text-[10px] text-slate-400 font-mono uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-full">Real-time Data</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                        {/* Temperature */}
-                                        <div className="group relative bg-orange-50/30 border border-orange-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-orange-200">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <div className="p-1 bg-orange-100 rounded-lg text-orange-600">
-                                                    <Activity className="w-3 h-3" />
-                                                </div>
-                                                <Label htmlFor="temperature" className="text-[10px] text-orange-700 uppercase font-bold tracking-tight">Temp (°F)</Label>
-                                            </div>
-                                            <Input
-                                                id="temperature"
-                                                name="temperature"
-                                                placeholder="98.6"
-                                                value={formData.temperature}
-                                                onChange={handleInputChange}
-                                                className="h-9 text-sm bg-white/80 border-orange-100 rounded-xl focus-visible:ring-orange-400 text-orange-900 font-semibold placeholder:text-slate-400"
-                                            />
-                                        </div>
-
-                                        {/* Heart Rate */}
-                                        <div className="group relative bg-red-50/30 border border-red-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-red-200">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <div className="p-1 bg-red-100 rounded-lg text-red-600 animate-pulse">
-                                                    <Activity className="w-3 h-3" />
-                                                </div>
-                                                <Label htmlFor="heartRate" className="text-[10px] text-red-700 uppercase font-bold tracking-tight">Pulse</Label>
-                                            </div>
-                                            <Input
-                                                id="heartRate"
-                                                name="heartRate"
-                                                placeholder="72"
-                                                value={formData.heartRate}
-                                                onChange={handleInputChange}
-                                                className="h-9 text-sm bg-white/80 border-red-100 rounded-xl focus-visible:ring-red-400 text-red-900 font-semibold placeholder:text-slate-400"
-                                            />
-                                        </div>
-
-                                        {/* BP */}
-                                        <div className="group relative bg-blue-50/30 border border-blue-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-blue-200">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <div className="p-1 bg-blue-100 rounded-lg text-blue-600">
-                                                    <Activity className="w-3 h-3" />
-                                                </div>
-                                                <Label htmlFor="bloodPressure" className="text-[10px] text-blue-700 uppercase font-bold tracking-tight">BP (mmHg)</Label>
-                                            </div>
-                                            <Input
-                                                id="bloodPressure"
-                                                name="bloodPressure"
-                                                placeholder="120/80"
-                                                value={formData.bloodPressure}
-                                                onChange={handleInputChange}
-                                                className="h-9 text-sm bg-white/80 border-blue-100 rounded-xl focus-visible:ring-blue-400 text-blue-900 font-semibold placeholder:text-slate-400"
-                                            />
-                                        </div>
-
-                                        {/* SpO2 */}
-                                        <div className="group relative bg-emerald-50/30 border border-emerald-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-emerald-200">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <div className="p-1 bg-emerald-100 rounded-lg text-emerald-600">
-                                                    <AlertTriangle className="w-3 h-3 text-emerald-600" />
-                                                </div>
-                                                <Label htmlFor="oxygenLevel" className="text-[10px] text-emerald-700 uppercase font-bold tracking-tight">SpO2 %</Label>
-                                            </div>
-                                            <Input
-                                                id="oxygenLevel"
-                                                name="oxygenLevel"
-                                                placeholder="98"
-                                                value={formData.oxygenLevel}
-                                                onChange={handleInputChange}
-                                                className="h-9 text-sm bg-white/80 border-emerald-100 rounded-xl focus-visible:ring-emerald-400 text-emerald-900 font-semibold placeholder:text-slate-400"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Symptoms & History */}
-                                <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
-                                    <div className="md:col-span-3 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="symptoms" className="text-sm">Presenting Symptoms</Label>
-                                            <button
-                                                type="button"
-                                                onClick={toggleListening}
-                                                className={`text-[10px] px-2 py-0.5 rounded-full border transition-all flex items-center gap-1 ${isListening ? 'border-red-500 text-red-500 bg-red-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'}`}
-                                            >
-                                                {isListening ? <><MicOff className="w-2.5 h-2.5 animate-pulse" /> Rec</> : <><Mic className="w-2.5 h-2.5" /> Voice</>}
-                                            </button>
-                                        </div>
-                                        <Textarea
-                                            id="symptoms"
-                                            name="symptoms"
-                                            placeholder="Describe complaints..."
-                                            className="h-28 resize-none text-sm"
-                                            value={formData.symptoms}
-                                            onChange={handleInputChange}
-                                        />
-                                    </div>
-                                    <div className="md:col-span-2 space-y-2">
-                                        <Label className="text-sm">Medical History</Label>
-                                        <div className="grid grid-cols-1 gap-1.5 max-h-32 overflow-y-auto pr-1">
-                                            {DEFAULT_MEDICAL_CONDITIONS.map((conf) => (
-                                                <div key={conf} className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id={conf}
-                                                        checked={formData.history.includes(conf)}
-                                                        onCheckedChange={(checked: boolean) => handleCheckboxChange(conf, checked)}
-                                                    />
-                                                    <Label htmlFor={conf} className="text-xs font-normal cursor-pointer leading-none">{conf}</Label>
-                                                </div>
-                                            ))}
-                                            {customConditions.map((conf) => (
-                                                <div key={conf} className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id={`custom-${conf}`}
-                                                        checked={formData.history.includes(conf)}
-                                                        onCheckedChange={(checked: boolean) => handleCheckboxChange(conf, checked)}
-                                                    />
-                                                    <Label htmlFor={`custom-${conf}`} className="text-xs font-normal cursor-pointer leading-none text-teal-600">{conf}</Label>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="flex gap-1.5 pt-1">
-                                            <Input
-                                                placeholder="+ New"
-                                                value={newConditionInput}
-                                                onChange={(e) => setNewConditionInput(e.target.value)}
-                                                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomCondition())}
-                                                className="h-7 text-xs"
-                                            />
-                                            <Button type="button" variant="ghost" size="sm" onClick={addCustomCondition} className="h-7 px-2 text-xs">Add</Button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11 transition-all shadow-md group" disabled={loading}>
-                                    {loading ? (
-                                        <>
-                                            <BrainCircuit className="mr-2 h-4 w-4 animate-spin" />
-                                            Processing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            Assess Risk Now
-                                            <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                                        </>
-                                    )}
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Results Panel */}
-                <div className="h-fit">
-                    {!result ? (
-                        <div className="h-full min-h-[480px] bg-slate-50/50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center p-6 text-center">
-                            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 border border-slate-100">
-                                <BrainCircuit className="w-6 h-6 text-teal-500" />
-                            </div>
-                            <h3 className="text-slate-600 font-semibold italic text-sm">Awaiting Clinical Data</h3>
-                            <p className="text-[10px] text-slate-400 mt-1 max-w-[150px]">Report will appear here after assessment</p>
-                        </div>
-                    ) : (
-                        <Card className="border-0 shadow-xl overflow-hidden bg-white ring-1 ring-black/5 flex flex-col h-full">
-
-                            <CardContent className="flex-grow p-6 space-y-6 flex flex-col pt-4 bg-slate-50/50 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-100/20 via-slate-50/10 to-teal-100/20">
-                                <div className={`p-6 rounded-3xl border shadow-sm backdrop-blur-md transition-all ${result.riskLevel === 'High' ? 'bg-red-500/10 border-red-200 shadow-red-500/5' :
-                                    result.riskLevel === 'Medium' ? 'bg-yellow-500/10 border-yellow-200 shadow-yellow-500/5' :
-                                        'bg-green-500/10 border-green-200 shadow-green-500/5'
-                                    }`}>
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex flex-col">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${result.riskLevel === 'High' ? 'bg-red-500' : result.riskLevel === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${result.riskLevel === 'High' ? 'text-red-600' :
-                                                        result.riskLevel === 'Medium' ? 'text-yellow-700' :
-                                                            'text-green-700'
-                                                        }`}>Clinical Analysis</span>
-                                                    <Badge variant="outline" className={`text-[8px] h-4 font-black px-1.5 ${result.isSimulated ? 'border-amber-200 text-amber-600 bg-amber-50' : 'border-teal-200 text-teal-600 bg-teal-50 animate-pulse'}`}>
-                                                        {result.isSimulated ? 'LOCAL FALLBACK' : 'AI Trained Model'}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                            <h2 className="text-2xl font-black text-slate-900 tracking-tighter leading-tight uppercase mb-1">
-                                                {formData.name || 'Anonymous Patient'}
-                                            </h2>
-                                            <h3 className={`text-4xl font-black uppercase tracking-tighter leading-tight ${result.riskLevel === 'High' ? 'text-red-600' :
-                                                result.riskLevel === 'Medium' ? 'text-yellow-600' :
-                                                    'text-green-600'
-                                                }`}>
-                                                {result.riskLevel} Case
-                                            </h3>
-                                        </div>
-                                        <div className={`p-4 rounded-3xl border ${result.riskLevel === 'High' ? 'bg-red-600 text-white animate-pulse shadow-xl shadow-red-200 border-red-400' :
-                                            result.riskLevel === 'Medium' ? 'bg-yellow-500 text-white border-yellow-300 shadow-yellow-200' :
-                                                'bg-green-500 text-white border-green-300 shadow-green-200'
-                                            }`}>
-                                            <Zap className={`w-6 h-6 fill-current ${!result.isSimulated && 'animate-bounce'}`} />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-black/5">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">AI Confidence</span>
-                                            <div className="flex items-baseline gap-1">
-                                                <span className="text-3xl font-black text-slate-800 leading-none">{(result.confidence * 100).toFixed(0)}</span>
-                                                <span className="text-xs font-bold text-slate-300">%</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">Risk Index</span>
-                                            <div className="flex items-baseline gap-1">
-                                                <span className="text-3xl font-black text-slate-800 leading-none">{result.riskScore}</span>
-                                                <span className="text-xs font-bold text-slate-300">/100</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Findings Section */}
-                                {result.riskFactors && result.riskFactors.length > 0 && (
-                                    <div className="space-y-2">
-                                        <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-2">
-                                            <div className="w-4 h-[1px] bg-slate-200"></div>
-                                            Primary Risk Markers
-                                        </h4>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {result.riskFactors.map((factor: string, i: number) => (
-                                                <Badge key={i} variant="outline" className="bg-white border-slate-200 text-slate-600 text-[10px] py-0.5 px-2 h-6 font-bold shadow-sm">
-                                                    {factor}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Summary Box */}
-                                {result.explanation && (
-                                    <div className="space-y-2">
-                                        <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-2">
-                                            <div className="w-4 h-[1px] bg-slate-200"></div>
-                                            Clinical AI Overview
-                                        </h4>
-                                        <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 text-[13px] text-slate-600 leading-relaxed font-medium">
-                                            {result.explanation}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Department Callout */}
-                                <div className="space-y-3">
-                                    <div className="bg-teal-50/50 border border-teal-100 rounded-2xl p-4 flex items-center justify-between">
-                                        <div className="space-y-1">
-                                            <div className="text-[10px] text-teal-600 font-black uppercase tracking-widest flex items-center gap-2">
-                                                <Zap className="w-3 h-3 animate-pulse" />
-                                                Automated Clinical Routing
-                                            </div>
-                                            <div className="text-2xl font-black text-teal-900 leading-tight tracking-tight">
-                                                {result.recommendedDepartment || result.department}
-                                            </div>
-                                        </div>
-                                        <div className="bg-teal-100 p-3 rounded-2xl text-teal-600 shadow-sm border border-teal-200">
-                                            <Stethoscope className="w-6 h-6" />
-                                        </div>
-                                    </div>
-
-                                    {result.routingReason && (
-                                        <div className="px-4 py-3 bg-white border border-slate-100 rounded-2xl flex items-start gap-3">
-                                            <Activity className="w-4 h-4 text-slate-400 mt-0.5" />
-                                            <div>
-                                                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Routing Rationale</div>
-                                                <p className="text-xs text-slate-600 leading-relaxed font-semibold italic">
-                                                    &quot;{result.routingReason}&quot;
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex flex-col gap-3">
-                                    <Button
-                                        onClick={handleConfirmAdmission}
-                                        disabled={loading || (result as any).storedRecord?.status === 'Admitted'}
-                                        className={`w-full h-14 shadow-xl text-xs font-black uppercase tracking-widest gap-2 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] ${(result as any).storedRecord?.status === 'Admitted'
-                                            ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100 cursor-default'
-                                            : 'bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white shadow-teal-500/20'
-                                            }`}
-                                    >
-                                        {loading ? (
-                                            <RefreshCw className="w-5 h-5 animate-spin" />
-                                        ) : (result as any).storedRecord?.status === 'Admitted' ? (
-                                            <ShieldCheck className="w-5 h-5" />
-                                        ) : (
-                                            <CheckCircle2 className="w-5 h-5 text-teal-200" />
-                                        )}
-                                        {(result as any).storedRecord?.status === 'Admitted' ? 'Admission Confirmed' : 'Confirm Patient Admission'}
-                                    </Button>
-
-                                    {(result as any).pdfUrl && (
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => {
-                                                const url = ((import.meta as any).env.VITE_API_URL || 'http://localhost:3001').replace('/api', '') + (result as any).pdfUrl;
-                                                window.open(url, '_blank');
-                                            }}
-                                            className="w-full h-10 border-teal-200 text-teal-700 hover:bg-teal-50 text-[10px] font-black uppercase tracking-widest gap-2 rounded-xl transition-all"
-                                        >
-                                            <FileText className="w-4 h-4" />
-                                            Download EHR Document (PDF)
-                                        </Button>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full border-2 border-white"></div>
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-3xl font-black text-slate-900 tracking-tighter leading-none uppercase">
+                Smart Patient Triage
+              </h2>
+              <Badge className="bg-indigo-50 text-indigo-700 border-indigo-100 text-xs font-bold animate-pulse py-1">
+                INTELLIGENT PLATFORM
+              </Badge>
             </div>
+            <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest mt-1.5 ml-0.5">
+              Automated Clinical Diagnostics & Companion Stratification
+            </p>
+          </div>
         </div>
-    );
-}
 
-/* updated */
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-tight">Active Protocol</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Split Screen Grid (Left: Assessment, Right: Result Companion) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        
+        {/* LEFT COLUMN - PATIENT ASSESSMENT */}
+        <div className="space-y-3">
+          <Card className="border-t-4 border-t-indigo-600 shadow-xl ring-1 ring-black/5 overflow-hidden rounded-xl bg-white">
+            <CardHeader className="py-3 px-4 bg-slate-50/50 border-b border-slate-100 flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
+                <Stethoscope className="w-4 h-4 text-indigo-600" />
+                Patient Assessment
+              </CardTitle>
+
+              <div className="flex items-center gap-2">
+                <input
+                  ref={ehrInputRef}
+                  type="file"
+                  accept=".json,.txt,.pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={handleEhrUpload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[10px] font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 gap-1.5 rounded-lg shadow-sm"
+                  onClick={() => ehrInputRef.current?.click()}
+                >
+                  <Upload className="w-3 h-3" />
+                  Import EHR
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* ID & Demographics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="patientId" className="text-sm font-semibold text-slate-700">Patient ID</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="patientId"
+                        name="patientId"
+                        value={formData.patientId}
+                        readOnly
+                        className="bg-gray-50 font-mono text-gray-500 h-9 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={refreshPatientId}
+                        title="Generate New ID"
+                      >
+                        <RefreshCw className="h-4 w-4 text-slate-500" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-sm font-semibold text-slate-700">Patient Name</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      placeholder="e.g. Rahul Sharma"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      className="h-9 text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="age" className="text-sm font-semibold text-slate-700">Age</Label>
+                    <Input
+                      id="age"
+                      name="age"
+                      type="number"
+                      placeholder="e.g. 45"
+                      value={formData.age}
+                      onChange={handleInputChange}
+                      className="h-9 text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gender" className="text-sm font-semibold text-slate-700">Gender</Label>
+                    <Select value={formData.gender} onValueChange={(val) => handleSelectChange('gender', val)} required>
+                      <SelectTrigger id="gender" className="h-9 text-sm">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone" className="text-sm font-semibold text-slate-700">Phone</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      placeholder="+91 98765 43210"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bloodGroup" className="text-sm font-semibold text-slate-700">Blood Group</Label>
+                    <Select value={formData.bloodGroup} onValueChange={(val) => handleSelectChange('bloodGroup', val)}>
+                      <SelectTrigger id="bloodGroup" className="h-9 text-sm">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown'].map(bg => (
+                          <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Vitals Box */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                      Baseline Physiological Vitals
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-semibold">Standard Triage Metrics</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                    {/* Temperature */}
+                    <div className="group relative bg-amber-50/30 border border-amber-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-amber-200">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1 bg-amber-100 rounded-lg text-amber-600">
+                          <Activity className="w-3 h-3 text-amber-600" />
+                        </div>
+                        <Label htmlFor="temperature" className="text-[10px] text-amber-700 uppercase font-bold tracking-tight">Temp °F</Label>
+                      </div>
+                      <Input
+                        id="temperature"
+                        name="temperature"
+                        placeholder="98.6"
+                        value={formData.temperature}
+                        onChange={handleInputChange}
+                        className="h-9 text-sm bg-white/80 border-amber-100 rounded-xl focus-visible:ring-amber-400 text-amber-900 font-semibold placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    {/* Heart Rate */}
+                    <div className="group relative bg-rose-50/30 border border-rose-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-rose-200">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1 bg-rose-100 rounded-lg text-rose-600">
+                          <Activity className="w-3 h-3 text-rose-600" />
+                        </div>
+                        <Label htmlFor="heartRate" className="text-[10px] text-rose-700 uppercase font-bold tracking-tight">Pulse bpm</Label>
+                      </div>
+                      <Input
+                        id="heartRate"
+                        name="heartRate"
+                        placeholder="72"
+                        value={formData.heartRate}
+                        onChange={handleInputChange}
+                        className="h-9 text-sm bg-white/80 border-rose-100 rounded-xl focus-visible:ring-rose-400 text-rose-900 font-semibold placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    {/* Blood Pressure */}
+                    <div className="group relative bg-blue-50/30 border border-blue-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-blue-200">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1 bg-blue-100 rounded-lg text-blue-600">
+                          <Activity className="w-3 h-3 text-blue-600" />
+                        </div>
+                        <Label htmlFor="bloodPressure" className="text-[10px] text-blue-700 uppercase font-bold tracking-tight">BP mmHg</Label>
+                      </div>
+                      <Input
+                        id="bloodPressure"
+                        name="bloodPressure"
+                        placeholder="120/80"
+                        value={formData.bloodPressure}
+                        onChange={handleInputChange}
+                        className="h-9 text-sm bg-white/80 border-blue-100 rounded-xl focus-visible:ring-blue-400 text-blue-900 font-semibold placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    {/* SpO2 */}
+                    <div className="group relative bg-emerald-50/30 border border-emerald-100 rounded-2xl p-3 transition-all hover:shadow-md hover:border-emerald-200">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="p-1 bg-emerald-100 rounded-lg text-emerald-600">
+                          <AlertTriangle className="w-3 h-3 text-emerald-600" />
+                        </div>
+                        <Label htmlFor="oxygenLevel" className="text-[10px] text-emerald-700 uppercase font-bold tracking-tight">SpO2 %</Label>
+                      </div>
+                      <Input
+                        id="oxygenLevel"
+                        name="oxygenLevel"
+                        placeholder="98"
+                        value={formData.oxygenLevel}
+                        onChange={handleInputChange}
+                        className="h-9 text-sm bg-white/80 border-emerald-100 rounded-xl focus-visible:ring-emerald-400 text-emerald-900 font-semibold placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Symptoms & Medical History */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div className="md:col-span-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="symptoms" className="text-sm font-semibold text-slate-700">Presenting Symptoms</Label>
+                      <button
+                        type="button"
+                        onClick={toggleListening}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-all flex items-center gap-1 ${
+                          isListening ? 'border-red-500 text-red-500 bg-red-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        {isListening ? (
+                          <>
+                            <MicOff className="w-2.5 h-2.5 animate-pulse" /> Rec
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="w-2.5 h-2.5" /> Voice
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <Textarea
+                      id="symptoms"
+                      name="symptoms"
+                      placeholder="Describe primary complaints, acute discomfort, or onset time..."
+                      className="h-28 resize-none text-sm"
+                      value={formData.symptoms}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 space-y-2">
+                    <Label className="text-sm font-semibold text-slate-700">Medical History</Label>
+                    <div className="grid grid-cols-1 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                      {DEFAULT_MEDICAL_CONDITIONS.map((conf) => (
+                        <div key={conf} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={conf}
+                            checked={formData.history.includes(conf)}
+                            onCheckedChange={(checked: boolean) => handleCheckboxChange(conf, checked)}
+                          />
+                          <Label htmlFor={conf} className="text-xs font-normal cursor-pointer leading-none">
+                            {conf}
+                          </Label>
+                        </div>
+                      ))}
+                      {customConditions.map((conf) => (
+                        <div key={conf} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`custom-${conf}`}
+                            checked={formData.history.includes(conf)}
+                            onCheckedChange={(checked: boolean) => handleCheckboxChange(conf, checked)}
+                          />
+                          <Label htmlFor={`custom-${conf}`} className="text-xs font-normal cursor-pointer leading-none text-teal-600">
+                            {conf}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5 pt-1">
+                      <Input
+                        placeholder="+ New condition"
+                        value={newConditionInput}
+                        onChange={(e) => setNewConditionInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomCondition())}
+                        className="h-7 text-xs"
+                      />
+                      <Button type="button" variant="ghost" size="sm" onClick={addCustomCondition} className="h-7 px-2 text-xs">
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Action Button */}
+                <Button
+                  type="submit"
+                  className="w-full bg-teal-600 hover:bg-teal-700 h-11 transition-all shadow-md group text-white font-bold"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <BrainCircuit className="mr-2 h-4 w-4 animate-spin" />
+                      Evaluating Clinical Parameters...
+                    </>
+                  ) : (
+                    <>
+                      Assess Risk Now
+                      <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* RIGHT COLUMN - LIVE PATIENT RESULT COMPANION */}
+        <div className="space-y-3">
+          
+          {/* STATE 1: IDLE / AWAITING DATA */}
+          {status === 'IDLE' && !result && (
+            <Card className="border-t-4 border-t-teal-600 shadow-xl ring-1 ring-black/5 overflow-hidden rounded-xl bg-white min-h-[560px] flex flex-col justify-center items-center p-8 text-center border-dashed">
+              <div className="w-16 h-16 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 mb-4 border border-teal-100 shadow-sm">
+                <BrainCircuit className="w-8 h-8" />
+              </div>
+              <h3 className="text-slate-700 font-bold text-base">Awaiting Clinical Data</h3>
+              <p className="text-slate-400 text-xs max-w-[320px] mt-2 font-medium leading-relaxed">
+                Enter patient vitals and presenting symptoms on the left, then click <span className="text-teal-600 font-semibold">Assess Risk Now</span> to activate multi-tier ML/LLM risk stratification and automated department routing.
+              </p>
+              <div className="flex items-center gap-2 mt-6 py-1.5 px-3 bg-slate-50 border border-slate-200/60 rounded-full text-[11px] text-slate-500 font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                <span>Deterministic Clinical Rules + XGBoost + Gemini CDSS</span>
+              </div>
+            </Card>
+          )}
+
+          {/* STATE 2: ANALYZING / SKELETON LOADING */}
+          {status === 'ANALYZING' && (
+            <Card className="border-t-4 border-t-teal-600 shadow-xl ring-1 ring-black/5 overflow-hidden rounded-xl bg-white p-6 space-y-6 min-h-[560px] flex flex-col justify-center">
+              <div className="text-center space-y-2">
+                <div className="inline-flex p-3 bg-teal-50 text-teal-600 rounded-2xl animate-pulse">
+                  <BrainCircuit className="w-8 h-8 animate-spin text-teal-600" />
+                </div>
+                <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
+                  Analyzing Patient Acuity
+                </h3>
+                <p className="text-xs text-slate-400 font-medium">
+                  Processing physiological signals against clinical guidelines...
+                </p>
+              </div>
+
+              {/* Progress Step Skeletons */}
+              <div className="space-y-3 max-w-md mx-auto w-full">
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between animate-pulse">
+                  <div className="flex items-center gap-2.5">
+                    <Activity className="w-4 h-4 text-teal-500" />
+                    <span className="text-xs font-semibold text-slate-700">Evaluating Physiological Vitals</span>
+                  </div>
+                  <Badge className="bg-teal-100 text-teal-700 text-[10px]">Processing</Badge>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between animate-pulse delay-75">
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-semibold text-slate-700">Executing XGBoost / Gemini CDSS</span>
+                  </div>
+                  <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Active</Badge>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between animate-pulse delay-150">
+                  <div className="flex items-center gap-2.5">
+                    <Building2 className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-semibold text-slate-700">Calculating Department Allocation</span>
+                  </div>
+                  <Badge className="bg-amber-100 text-amber-700 text-[10px]">Pending</Badge>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* STATE 3: ERROR / RETRY */}
+          {status === 'ERROR' && (
+            <Card className="border-t-4 border-t-rose-600 shadow-xl ring-1 ring-black/5 overflow-hidden rounded-xl bg-white min-h-[560px] flex flex-col justify-center items-center p-8 text-center">
+              <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600 mb-4 border border-rose-100 shadow-sm">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-slate-800 font-bold text-base">Clinical Analysis Unavailable</h3>
+              <p className="text-slate-500 text-xs max-w-[340px] mt-2 font-medium leading-relaxed">
+                {errorMessage || 'An unexpected error occurred while communicating with the clinical diagnostic engine.'}
+              </p>
+              <Button
+                onClick={handleSubmit as any}
+                className="mt-6 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs h-10 px-5 rounded-xl gap-2 shadow-md"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Retry Clinical Analysis
+              </Button>
+            </Card>
+          )}
+
+          {/* STATE 4: SUCCESS / LIVE PATIENT RESULT COMPANION */}
+          {status === 'SUCCESS' && result && (
+            <Card className="border-t-4 border-t-teal-600 shadow-xl ring-1 ring-black/5 overflow-hidden rounded-xl bg-white">
+              
+              {/* Header: Clinical Analysis & Model Status */}
+              <CardHeader className="py-3 px-4 bg-slate-50/50 border-b border-slate-100 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-teal-50 text-teal-600 rounded-lg border border-teal-100">
+                    <BrainCircuit className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold text-slate-800">
+                      Clinical Analysis
+                    </CardTitle>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      {result.modelStatus || 'PRIMARY MODEL'}
+                    </div>
+                  </div>
+                </div>
+
+                <Badge
+                  className={`font-black tracking-widest text-[10px] px-2.5 py-0.5 rounded-full ${
+                    result.priority === 'CRITICAL' || result.priority === 'HIGH' || result.riskLevel === 'High' || result.riskLevel === 'Critical'
+                      ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                      : result.priority === 'MODERATE' || result.riskLevel === 'Moderate' || result.riskLevel === 'Medium'
+                      ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                      : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                  }`}
+                >
+                  {(result.priority || result.riskLevel || 'MODERATE').toUpperCase()} CASE
+                </Badge>
+              </CardHeader>
+
+              <CardContent className="p-4 space-y-4">
+                
+                {/* 1. Patient Acuity & Metric Indicators */}
+                <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                        {formData.name || result.patientName || 'Patient'}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-400 font-bold">
+                        {formData.patientId || result.patientId}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Decision Engine</span>
+                      <div className="text-xs font-bold text-slate-700">{result.decisionEngine}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    {/* AI Confidence */}
+                    <div className="bg-white border border-slate-100 rounded-xl p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">AI Confidence</span>
+                        <span className="text-xs font-black text-teal-600">{result.confidence}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-teal-500 h-full rounded-full transition-all duration-700" style={{ width: `${result.confidence}%` }}></div>
+                      </div>
+                    </div>
+
+                    {/* Risk Score */}
+                    <div className="bg-white border border-slate-100 rounded-xl p-2.5">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Risk Score</span>
+                        <span className={`text-xs font-black ${
+                          result.riskScore >= 70 ? 'text-rose-600' : result.riskScore >= 40 ? 'text-amber-600' : 'text-emerald-600'
+                        }`}>
+                          {result.riskScore} / 100
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${
+                            result.riskScore >= 70 ? 'bg-rose-500' : result.riskScore >= 40 ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${result.riskScore}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. AI Clinical Reasoning */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      AI Clinical Reasoning
+                    </h4>
+                    <span className="text-[10px] text-slate-400 font-semibold">Prioritization Factors</span>
+                  </div>
+
+                  <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-3.5 text-xs text-slate-700 leading-relaxed font-medium">
+                    {result.explanation}
+                  </div>
+
+                  {/* Risk Markers */}
+                  {result.riskFactors && result.riskFactors.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {result.riskFactors.map((factor: string, i: number) => (
+                        <Badge
+                          key={i}
+                          variant="outline"
+                          className="bg-white border-slate-200 text-slate-600 text-[10px] py-0.5 px-2 h-6 font-bold shadow-sm flex items-center gap-1"
+                        >
+                          <Activity className="w-2.5 h-2.5 text-teal-600" />
+                          {factor}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Urgency & Recommended Action */}
+                  {result.recommendedNextStep && (
+                    <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl text-xs font-semibold text-amber-800 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-amber-600">Urgency & Action</div>
+                        <div>{result.recommendedNextStep}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Clinical Evidence Findings */}
+                {result.clinicalEvidence?.findings && result.clinicalEvidence.findings.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-teal-600" />
+                      Clinical Evidence
+                    </h4>
+                    <div className="bg-white border border-slate-100 rounded-xl divide-y divide-slate-50 overflow-hidden">
+                      {result.clinicalEvidence.findings.map((item, idx) => (
+                        <div key={idx} className="p-2.5 px-3 flex items-center justify-between text-xs">
+                          <div className="font-medium text-slate-700">{item.label}</div>
+                          <div className="flex items-center gap-2">
+                            {item.value && <span className="font-semibold text-slate-900">{item.value}</span>}
+                            <Badge
+                              className={`text-[9px] font-black px-1.5 py-0 ${
+                                item.impact === 'HIGH'
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-200'
+                                  : item.impact === 'MEDIUM'
+                                  ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                                  : 'bg-slate-50 text-slate-600 border border-slate-200'
+                              }`}
+                            >
+                              {item.impact || 'STANDARD'}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Automated Clinical Routing */}
+                <div className="space-y-2">
+                  <div className="bg-teal-50/50 border border-teal-100 rounded-2xl p-4 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-teal-600 font-black uppercase tracking-widest flex items-center gap-1.5">
+                        <Zap className="w-3 h-3 animate-pulse text-teal-600" />
+                        Automated Clinical Routing
+                      </div>
+                      <div className="text-2xl font-black text-teal-900 leading-tight tracking-tight">
+                        {result.department}
+                      </div>
+                      <div className="text-[11px] text-teal-700 font-semibold flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3 text-teal-600 shrink-0" />
+                        {result.departmentLocation}
+                      </div>
+                    </div>
+                    <div className="bg-teal-100 p-3 rounded-2xl text-teal-600 shadow-sm border border-teal-200">
+                      <Stethoscope className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  {result.routingReason && (
+                    <div className="px-3.5 py-2.5 bg-slate-50/60 border border-slate-100 rounded-xl flex items-start gap-2.5">
+                      <Building2 className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Routing Rationale</div>
+                        <p className="text-xs text-slate-600 leading-relaxed font-semibold italic">
+                          &quot;{result.routingReason}&quot;
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Admission Action */}
+                <div className="flex flex-col gap-2.5 pt-1">
+                  <Button
+                    onClick={handleConfirmAdmission}
+                    disabled={loading || (result as any).storedRecord?.status === 'Admitted'}
+                    className={`w-full h-12 shadow-md text-xs font-black uppercase tracking-widest gap-2 rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] ${
+                      (result as any).storedRecord?.status === 'Admitted'
+                        ? 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200 cursor-default'
+                        : 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-500/20'
+                    }`}
+                  >
+                    {loading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (result as any).storedRecord?.status === 'Admitted' ? (
+                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5 text-white" />
+                    )}
+                    {(result as any).storedRecord?.status === 'Admitted' ? 'Admission Confirmed' : 'Confirm Patient Admission'}
+                  </Button>
+
+                  {/* 6. Post-Admission Record & PDF Actions */}
+                  {(result as any).storedRecord?.status === 'Admitted' && (
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl space-y-2 mt-1 animate-in fade-in duration-300">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-3 h-3 text-teal-600" />
+                        Patient Record & Clinical Documentation
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => downloadPatientDetailsPDF(formData, result)}
+                          className="h-8 text-[10px] font-bold text-slate-700 border-slate-200 hover:bg-white rounded-xl gap-1"
+                        >
+                          <Download className="w-3 h-3 text-teal-600" />
+                          Patient Details
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => downloadClinicalTriagePDF(formData, result)}
+                          className="h-8 text-[10px] font-bold text-slate-700 border-slate-200 hover:bg-white rounded-xl gap-1"
+                        >
+                          <Download className="w-3 h-3 text-indigo-600" />
+                          Triage Report
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => downloadCompleteAdmissionRecordPDF(formData, result)}
+                          className="h-8 text-[10px] font-bold text-slate-700 border-slate-200 hover:bg-white rounded-xl gap-1"
+                        >
+                          <Download className="w-3 h-3 text-emerald-600" />
+                          Full Admission
+                        </Button>
+                      </div>
+
+                      {result.pdfUrl && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const url = ((import.meta as any).env.VITE_API_URL || 'http://localhost:3001').replace('/api', '') + result.pdfUrl;
+                            window.open(url, '_blank');
+                          }}
+                          className="w-full h-8 text-[10px] font-bold text-teal-700 border-teal-200 hover:bg-teal-50 rounded-xl gap-1"
+                        >
+                          <FileText className="w-3 h-3" />
+                          Download EHR Document (PDF)
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+              </CardContent>
+            </Card>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}

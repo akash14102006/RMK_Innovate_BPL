@@ -105,8 +105,8 @@ export interface PatientRecord {
 }
 
 export function getDepartmentLocation(dept: string): string {
-    const d = (dept || "").toLowerCase();
-    if (d.includes("emergency") || d.includes("trauma") || d.includes("er") || d.includes("resuscitation")) {
+    const d = (dept || "").toLowerCase().trim();
+    if (d.includes("emergency") || d.includes("trauma") || d.includes("resuscitation") || d === "er" || d.startsWith("er ") || d.endsWith(" er")) {
         return "Ground Floor - Emergency Wing / Bay 01-04";
     }
     if (d.includes("cardio") || d.includes("heart")) {

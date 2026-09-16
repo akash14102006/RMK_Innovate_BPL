@@ -22,7 +22,6 @@ import AuthenticationService from '../auth/AuthenticationService';
 import AuthRouteResolver from '../auth/AuthRouteResolver';
 import ConsentService from '../services/ConsentService';
 import QRSessionClientService from '../services/QRSessionClientService';
-import { isDevAuthBypassEnabled } from '../auth/devAuthBypass';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'OTPVerification'>;
 
@@ -186,17 +185,6 @@ export const OTPVerificationScreen: React.FC<Props> = ({ navigation, route }) =>
           {/* Translucent Glass Card containing 6 OTP Cells */}
           <Animated.View style={[styles.cardWrapper, { opacity: contentOpacity }]}>
             <GlassCard style={styles.glassCard}>
-              {isDevAuthBypassEnabled() && (
-                <View style={styles.devBanner} accessible accessibilityRole="text">
-                  <View style={styles.devBadgePill}>
-                    <Text style={styles.devBadgeText}>DEVELOPMENT AUTH MODE</Text>
-                  </View>
-                  <Text style={styles.devSubtext}>
-                    Enter verification code: <Text style={styles.devCodeHighlight}>123456</Text>
-                  </Text>
-                </View>
-              )}
-
               {errorMessage && (
                 <View style={styles.errorNotice} accessible accessibilityRole="alert">
                   <Text style={styles.errorNoticeText}>{errorMessage}</Text>
@@ -363,39 +351,6 @@ const styles = StyleSheet.create({
     fontSize: typography.bodyLarge.fontSize,
     fontWeight: '700',
     color: colors.textInverted,
-  },
-  devBanner: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    alignItems: 'center',
-  },
-  devBadgePill: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radii.full,
-    marginBottom: spacing.xs,
-  },
-  devBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  devSubtext: {
-    fontSize: typography.caption.fontSize,
-    color: '#92400E',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  devCodeHighlight: {
-    fontWeight: '800',
-    color: '#B45309',
-    backgroundColor: 'rgba(245, 158, 11, 0.25)',
   },
 });
 
